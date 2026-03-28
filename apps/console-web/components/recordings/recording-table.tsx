@@ -56,15 +56,15 @@ export function RecordingTable({
   const sortAccessor = (item: Recording, key: string): unknown => {
     switch (key) {
       case "cameraName":
-        return item.cameraName ?? ""
+        return item.camera_name ?? ""
       case "startTime":
-        return item.startTime
+        return item.start_time
       case "duration": {
-        if (!item.endTime) return 0
-        return new Date(item.endTime).getTime() - new Date(item.startTime).getTime()
+        if (!item.end_time) return 0
+        return new Date(item.end_time).getTime() - new Date(item.start_time).getTime()
       }
       case "sizeBytes":
-        return item.sizeBytes
+        return item.size_bytes
       default:
         return ""
     }
@@ -75,8 +75,8 @@ export function RecordingTable({
   const someSelected = recordings.some((r) => selectedIds.has(r.id)) && !allSelected
 
   function handleRowClick(rec: Recording) {
-    const dateStr = new Date(rec.startTime).toISOString().split("T")[0]!
-    router.push(`/recordings/${rec.cameraId}?date=${dateStr}`)
+    const dateStr = new Date(rec.start_time).toISOString().split("T")[0]!
+    router.push(`/recordings/${rec.camera_id}?date=${dateStr}`)
   }
 
   return (
@@ -150,7 +150,7 @@ export function RecordingTable({
                 <TableCell>
                   <div className="h-11 w-20 overflow-hidden rounded bg-muted">
                     <img
-                      src={`/api/v1/cameras/${rec.cameraId}/thumbnail`}
+                      src={`/api/v1/cameras/${rec.camera_id}/thumbnail`}
                       alt=""
                       className="size-full object-cover"
                       onError={(e) => {
@@ -160,16 +160,16 @@ export function RecordingTable({
                   </div>
                 </TableCell>
                 <TableCell className="text-sm font-medium">
-                  {rec.cameraName ?? "Unknown"}
+                  {rec.camera_name ?? "Unknown"}
                 </TableCell>
                 <TableCell className="text-sm">
-                  {formatDateTime(rec.startTime)}
+                  {formatDateTime(rec.start_time)}
                 </TableCell>
                 <TableCell className="text-sm">
-                  {formatDuration(rec.startTime, rec.endTime)}
+                  {formatDuration(rec.start_time, rec.end_time)}
                 </TableCell>
                 <TableCell className="text-sm">
-                  {formatBytes(rec.sizeBytes)}
+                  {formatBytes(rec.size_bytes)}
                 </TableCell>
                 <TableCell onClick={(e) => e.stopPropagation()}>
                   <div className="flex items-center gap-1">

@@ -32,13 +32,13 @@ import { apiClient } from "@/lib/api-client";
 
 interface Recording {
   id: string;
-  cameraId: string;
-  startTime: string;
-  endTime: string;
-  fileFormat: string;
-  sizeBytes: number;
-  retentionDays: number;
-  storageType: string;
+  camera_id: string;
+  start_time: string;
+  end_time: string;
+  file_format: string;
+  size_bytes: number;
+  retention_days: number;
+  storage_type: string;
 }
 
 interface CameraInfo {
@@ -199,8 +199,8 @@ function RecordingDetailContent() {
     // Find the nearest recording that covers this timestamp
     const ts = timestamp.getTime();
     const matching = recordings.find((r) => {
-      const start = new Date(r.startTime).getTime();
-      const end = new Date(r.endTime).getTime();
+      const start = new Date(r.start_time).getTime();
+      const end = new Date(r.end_time).getTime();
       return ts >= start && ts <= end;
     });
 
@@ -212,7 +212,7 @@ function RecordingDetailContent() {
       let closest: Recording | null = null;
       let closestDist = Infinity;
       for (const r of recordings) {
-        const start = new Date(r.startTime).getTime();
+        const start = new Date(r.start_time).getTime();
         const dist = Math.abs(ts - start);
         if (dist < closestDist) {
           closestDist = dist;
@@ -221,7 +221,7 @@ function RecordingDetailContent() {
       }
       if (closest) {
         await playRecording(closest.id);
-        setCurrentPlayTime(new Date(closest.startTime));
+        setCurrentPlayTime(new Date(closest.start_time));
       }
     }
   }
@@ -230,7 +230,7 @@ function RecordingDetailContent() {
   function handlePlayerTimeUpdate(currentSec: number) {
     // If we have a playing recording, compute the absolute time from the first recording's start
     if (recordings.length > 0 && playbackUrl) {
-      const firstStart = new Date(recordings[0]!.startTime);
+      const firstStart = new Date(recordings[0]!.start_time);
       setCurrentPlayTime(new Date(firstStart.getTime() + currentSec * 1000));
     }
   }
@@ -321,8 +321,8 @@ function RecordingDetailContent() {
         <CardContent>
           <RecordingTimeline
             recordings={recordings.map((r) => ({
-              startTime: r.startTime,
-              endTime: r.endTime,
+              start_time: r.start_time,
+              end_time: r.end_time,
             }))}
             onSeek={handleTimelineSeek}
             currentTime={currentPlayTime}
@@ -364,21 +364,21 @@ function RecordingDetailContent() {
                 <TableBody>
                   {recordings.map((rec) => {
                     const durationMs =
-                      new Date(rec.endTime).getTime() -
-                      new Date(rec.startTime).getTime();
+                      new Date(rec.end_time).getTime() -
+                      new Date(rec.start_time).getTime();
                     return (
                       <TableRow key={rec.id}>
                         <TableCell className="text-sm">
-                          {formatTime(rec.startTime)}
+                          {formatTime(rec.start_time)}
                         </TableCell>
                         <TableCell className="text-sm">
-                          {formatTime(rec.endTime)}
+                          {formatTime(rec.end_time)}
                         </TableCell>
                         <TableCell className="text-sm">
                           {formatDuration(durationMs)}
                         </TableCell>
                         <TableCell className="text-sm">
-                          {formatBytes(rec.sizeBytes)}
+                          {formatBytes(rec.size_bytes)}
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-1">

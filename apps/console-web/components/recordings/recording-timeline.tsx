@@ -3,8 +3,8 @@
 import { useCallback, useRef } from "react";
 
 interface TimelineRecording {
-  startTime: string;
-  endTime: string;
+  start_time: string;
+  end_time: string;
 }
 
 interface RecordingTimelineProps {
@@ -25,7 +25,7 @@ export function RecordingTimeline({
 
   // Get the start of the day from the first recording or today
   const dayStart = recordings.length > 0
-    ? new Date(new Date(recordings[0]!.startTime).toDateString())
+    ? new Date(new Date(recordings[0]!.start_time).toDateString())
     : new Date(new Date().toDateString());
 
   const getPercent = useCallback(
@@ -61,8 +61,8 @@ export function RecordingTimeline({
       >
         {/* Recording segments */}
         {recordings.map((rec, i) => {
-          const start = getPercent(new Date(rec.startTime));
-          const end = getPercent(new Date(rec.endTime));
+          const start = getPercent(new Date(rec.start_time));
+          const end = getPercent(new Date(rec.end_time));
           const width = end - start;
           return (
             <div

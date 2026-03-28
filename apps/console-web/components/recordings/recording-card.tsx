@@ -43,8 +43,8 @@ export function RecordingCard({ recording, selected, onSelectChange }: Recording
   const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [showPreview, setShowPreview] = useState(false)
 
-  const thumbnailUrl = `/api/v1/cameras/${recording.cameraId}/thumbnail`
-  const previewUrl = recording.hlsUrl ?? null
+  const thumbnailUrl = `/api/v1/cameras/${recording.camera_id}/thumbnail`
+  const previewUrl: string | null = null // Hover preview requires VOD URL — not yet available in list response
 
   const handleMouseEnter = useCallback(() => {
     setHovering(true)
@@ -67,8 +67,8 @@ export function RecordingCard({ recording, selected, onSelectChange }: Recording
     if (target.closest("[data-slot='checkbox']") || target.closest("[data-role='checkbox-area']")) {
       return
     }
-    const dateStr = new Date(recording.startTime).toISOString().split("T")[0]!
-    router.push(`/recordings/${recording.cameraId}?date=${dateStr}`)
+    const dateStr = new Date(recording.start_time).toISOString().split("T")[0]!
+    router.push(`/recordings/${recording.camera_id}?date=${dateStr}`)
   }
 
   return (
@@ -93,7 +93,7 @@ export function RecordingCard({ recording, selected, onSelectChange }: Recording
             {!imgError ? (
               <img
                 src={thumbnailUrl}
-                alt={recording.cameraName ?? "Recording thumbnail"}
+                alt={recording.camera_name ?? "Recording thumbnail"}
                 className="size-full object-cover"
                 onError={() => setImgError(true)}
               />
@@ -123,23 +123,23 @@ export function RecordingCard({ recording, selected, onSelectChange }: Recording
 
         {/* Duration badge */}
         <div className="absolute bottom-2 right-2 rounded bg-black/70 px-1.5 py-0.5 text-xs font-medium text-white">
-          {formatDuration(recording.startTime, recording.endTime)}
+          {formatDuration(recording.start_time, recording.end_time)}
         </div>
       </div>
 
       {/* Info */}
       <div className="space-y-1 p-3">
         <p className="text-sm font-medium leading-tight truncate">
-          {recording.cameraName ?? "Unknown Camera"}
+          {recording.camera_name ?? "Unknown Camera"}
         </p>
         <div className="flex items-center gap-3 text-xs text-muted-foreground">
           <span className="flex items-center gap-1">
             <Clock className="size-3" />
-            {formatDateTime(recording.startTime)}
+            {formatDateTime(recording.start_time)}
           </span>
           <span className="flex items-center gap-1">
             <HardDrive className="size-3" />
-            {formatBytes(recording.sizeBytes)}
+            {formatBytes(recording.size_bytes)}
           </span>
         </div>
       </div>

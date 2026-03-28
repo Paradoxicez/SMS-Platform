@@ -80,11 +80,11 @@ export default function RecordingsPage() {
 
       const res = await apiClient.get<{
         data: Recording[]
-        pagination?: { total: number; total_pages: number }
+        meta?: { total?: number; total_pages?: number; page?: number; per_page?: number }
       }>(path)
 
       setRecordings(res.data)
-      setTotalItems(res.pagination?.total ?? res.data.length)
+      setTotalItems(res.meta?.total ?? res.data.length)
     } catch {
       setRecordings([])
       setTotalItems(0)
@@ -104,9 +104,9 @@ export default function RecordingsPage() {
 
   // Enrich recordings with camera names
   const enrichedRecordings = recordings.map((rec) => {
-    if (rec.cameraName) return rec
-    const cam = cameras.find((c) => c.id === rec.cameraId)
-    return { ...rec, cameraName: cam?.name ?? undefined }
+    if (rec.camera_name) return rec
+    const cam = cameras.find((c) => c.id === rec.camera_id)
+    return { ...rec, camera_name: cam?.name ?? undefined }
   })
 
   // Selection handlers
@@ -136,7 +136,7 @@ export default function RecordingsPage() {
     for (const rec of selected) {
       const link = document.createElement("a")
       link.href = `/api/v1/recordings/${rec.id}/download`
-      link.download = `${rec.cameraName ?? rec.cameraId}_${rec.startTime}.mp4`
+      link.download = `${rec.camera_name ?? rec.camera_id}_${rec.start_time}.mp4`
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)
