@@ -44,7 +44,8 @@ interface Recording {
 interface CameraInfo {
   id: string;
   name: string;
-  status: string;
+  health_status?: string;
+  tags?: unknown;
   recording_mode?: string;
   retention_days?: number;
   storage_used?: number;
@@ -119,7 +120,8 @@ function RecordingDetailContent() {
         setCamera({
           id: c.id,
           name: c.name,
-          status: c.status,
+          health_status: c.health_status,
+          tags: c.tags,
           recording_mode: c.recording_mode,
           retention_days: c.retention_days,
           storage_used: c.storage_used,
@@ -235,15 +237,18 @@ function RecordingDetailContent() {
     }
   }
 
-  const recordingStatusBadge = camera?.recording_mode ? (
-    <Badge variant="secondary" className="gap-1">
+  const cameraTags = (camera?.tags as string[]) ?? [];
+  const isRecordingEnabled = cameraTags.includes("__recording_enabled");
+
+  const recordingStatusBadge = isRecordingEnabled ? (
+    <Badge variant="secondary" className="gap-1 bg-red-100 text-red-700">
       <CircleDot className="h-3 w-3" />
-      {camera.recording_mode}
+      Recording
     </Badge>
   ) : (
     <Badge variant="outline" className="gap-1">
       <CircleDot className="h-3 w-3" />
-      Unknown
+      Recording Off
     </Badge>
   );
 
@@ -265,9 +270,9 @@ function RecordingDetailContent() {
             <div className="mt-1 flex items-center gap-2">
               {recordingStatusBadge}
               <Badge
-                variant={camera?.status === "online" ? "default" : "outline"}
+                variant={camera?.health_status === "online" ? "default" : "outline"}
               >
-                {camera?.status ?? "unknown"}
+                {camera?.health_status ?? "offline"}
               </Badge>
             </div>
           </div>
