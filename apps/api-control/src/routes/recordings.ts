@@ -125,6 +125,28 @@ recordingsRouter.post(
   },
 );
 
+// DELETE /recordings/:id — delete a recording (file + DB)
+recordingsRouter.delete(
+  "/recordings/:id",
+  requireRole("admin", "operator"),
+  requireFeature("recording"),
+  async (c) => {
+    const tenantId = c.get("tenantId");
+    const recordingId = c.req.param("id");
+
+    try {
+      const { deleteRecording } = await import("../services/recordings");
+      await deleteRecording(recordingId, tenantId);
+      return c.json({ data: { deleted: true } });
+    } catch (err) {
+      return c.json(
+        { error: { code: "NOT_FOUND", message: err instanceof Error ? err.message : "Error" } },
+        404,
+      );
+    }
+  },
+);
+
 // ─── Recording Config Endpoints ─────────────────────────────────────────────
 
 // GET /recording-config/overrides — list all scope overrides for tenant

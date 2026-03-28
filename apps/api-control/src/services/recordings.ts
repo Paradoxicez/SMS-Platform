@@ -390,6 +390,60 @@ export async function createVodSession(
 // ─── Purge Expired Recordings ───────────────────────────────────────────────
 
 /**
+ * Delete a single recording by ID (DB record + file).
+ */
+export async function deleteRecording(recordingId: string, tenantId: string): Promise<void> {
+  const rec = await withTenantContext(tenantId, async (tx) => {
+    return tx.query.recordings.findFirst({
+      where: and(eq(recordings.id, recordingId), eq(recordings.tenantId, tenantId)),
+    });
+  });
+
+  if (!rec) {
+    throw new Error("Recording not found");
+  }
+
+  // Delete file from storage
+  try {
+    if (rec.storageType === "s3" && rec.s3Key && rec.s3Bucket) {
+      const s3Config: S3Config = {
+        bucket: rec.s3Bucket,
+        region: process.env["S3_REGION"] ?? "us-east-1",
+        endpoint: process.env["S3_ENDPOINT"],
+        accessKey: process.env["S3_ACCESS_KEY"] ?? "",
+        secretKey: process.env["S3_SECRET_KEY"] ?? "",
+      };
+      const storage = getStorageProvider("s3", s3Config);
+      await storage.delete(rec.s3Key);
+    } else {
+      const storage = getStorageProvider("local");
+      await storage.delete(rec.filePath);
+    }
+  } catch {
+    console.warn(JSON.stringify({
+      level: "warn",
+      service: "recordings",
+      message: "Failed to delete recording file",
+      recordingId,
+      filePath: rec.filePath,
+    }));
+  }
+
+  // Delete DB record
+  await withTenantContext(tenantId, async (tx) => {
+    await tx.delete(recordings).where(eq(recordings.id, recordingId));
+  });
+
+  console.log(JSON.stringify({
+    level: "info",
+    service: "recordings",
+    message: "Recording deleted",
+    recordingId,
+    filePath: rec.filePath,
+  }));
+}
+
+/**
  * Delete recordings past their retention period.
  * Also removes physical files from disk.
  */
