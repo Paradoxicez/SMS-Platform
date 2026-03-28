@@ -61,8 +61,10 @@ services:
     volumes:
       - ./mediamtx/mediamtx.yml:/mediamtx.yml
       - thumbnails_data:/thumbnails
+      - recordings_data:/recordings
 
 volumes:
   postgres_data:
   redis_data:
   thumbnails_data:
+  recordings_data:
