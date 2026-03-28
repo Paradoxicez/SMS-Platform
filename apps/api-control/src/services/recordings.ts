@@ -6,6 +6,7 @@ import { randomUUID } from "node:crypto";
 import { getStorageProvider, type S3Config } from "../lib/recording-storage";
 import { isWithinSchedule, type ScheduleWindow } from "../lib/recording-schedule";
 import { resolveEffectiveConfig } from "./recording-config";
+import { mediamtxFetch } from "../lib/mediamtx-fetch";
 
 // ─── Enable / Disable ───────────────────────────────────────────────────────
 
@@ -38,6 +39,35 @@ export async function enableRecording(
     });
   }
 
+  // Configure MediaMTX to start recording on this camera's path
+  const pathName = `cam-${cameraId}`;
+  try {
+    await mediamtxFetch(`/v3/config/paths/patch/${pathName}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        record: true,
+        recordPath: `./recordings/%path/%Y-%m-%d_%H-%M-%S-%f`,
+        recordFormat: "fmp4",
+      }),
+    });
+    console.log(JSON.stringify({
+      level: "info",
+      service: "recordings",
+      message: "MediaMTX recording enabled",
+      cameraId,
+      pathName,
+    }));
+  } catch (err) {
+    console.error(JSON.stringify({
+      level: "error",
+      service: "recordings",
+      message: "Failed to enable recording on MediaMTX",
+      cameraId,
+      error: err instanceof Error ? err.message : String(err),
+    }));
+  }
+
   return {
     camera_id: cameraId,
     recording_enabled: true,
@@ -67,6 +97,31 @@ export async function disableRecording(cameraId: string, tenantId: string) {
       .set({ tags, updatedAt: new Date() })
       .where(eq(cameras.id, cameraId));
   });
+
+  // Tell MediaMTX to stop recording on this camera's path
+  const pathName = `cam-${cameraId}`;
+  try {
+    await mediamtxFetch(`/v3/config/paths/patch/${pathName}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ record: false }),
+    });
+    console.log(JSON.stringify({
+      level: "info",
+      service: "recordings",
+      message: "MediaMTX recording disabled",
+      cameraId,
+      pathName,
+    }));
+  } catch (err) {
+    console.error(JSON.stringify({
+      level: "error",
+      service: "recordings",
+      message: "Failed to disable recording on MediaMTX",
+      cameraId,
+      error: err instanceof Error ? err.message : String(err),
+    }));
+  }
 
   return { camera_id: cameraId, recording_enabled: false };
 }
