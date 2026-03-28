@@ -64,6 +64,7 @@ export const PLAN_DEFINITIONS: Record<PlanTier, PlanDefinition> = {
       "stream_profiles",
       "embed",
       "api_access",
+      "recording",
     ],
     defaultLimits: {
       cameras: 50,
@@ -86,6 +87,7 @@ export const PLAN_DEFINITIONS: Record<PlanTier, PlanDefinition> = {
       "custom_profiles",
       "csv_import",
       "webhooks",
+      "recording",
       "forwarding",
       "audit_log",
       "map_public",

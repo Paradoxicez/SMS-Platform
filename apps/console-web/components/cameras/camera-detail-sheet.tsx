@@ -17,7 +17,8 @@ import type { Camera } from "@repo/types";
 import { formatDateTime } from "@/lib/format-date";
 import { apiClient, type CameraHealthStatus } from "../../lib/api-client";
 import { HlsPlayer } from "@/components/player/hls-player";
-import { VideoOff, Code2 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { VideoOff, Code2, CircleDot } from "lucide-react";
 import { EmbedCodeDialog } from "./embed-code-dialog";
 
 interface CameraDetailSheetProps {
@@ -97,6 +98,8 @@ export function CameraDetailSheet({
   const [profileName, setProfileName] = useState("Default");
   const [bandwidth, setBandwidth] = useState<{ bytesIn: number; bytesOut: number } | null>(null);
   const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
+  const [recordingEnabled, setRecordingEnabled] = useState(false);
+  const [recordingLoading, setRecordingLoading] = useState(false);
 
   const currentStatus =
     localStatus ??
@@ -161,6 +164,28 @@ export function CameraDetailSheet({
       }
     }
   }, [open, camera, isOnline]);
+
+  // Detect recording state from camera tags
+  useEffect(() => {
+    const tags = (camera.tags as string[]) ?? [];
+    setRecordingEnabled(tags.includes("__recording_enabled"));
+  }, [camera.tags]);
+
+  async function handleRecordingToggle(enabled: boolean) {
+    setRecordingLoading(true);
+    try {
+      const endpoint = enabled
+        ? `/cameras/${camera.id}/recording/enable`
+        : `/cameras/${camera.id}/recording/disable`;
+      await apiClient.post(endpoint, {});
+      setRecordingEnabled(enabled);
+    } catch {
+      // Revert on error
+      setRecordingEnabled(!enabled);
+    } finally {
+      setRecordingLoading(false);
+    }
+  }
 
   // Realtime bandwidth polling every 2s
   useEffect(() => {
@@ -314,6 +339,28 @@ export function CameraDetailSheet({
                       </div>
                     </div>
                   </div>
+
+                    {/* Recording Toggle */}
+                    <div className="grid grid-cols-[100px_1fr] gap-2 items-center">
+                      <span className="text-sm font-medium text-muted-foreground">Recording</span>
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          checked={recordingEnabled}
+                          onCheckedChange={handleRecordingToggle}
+                          disabled={recordingLoading}
+                        />
+                        <span className="text-sm text-muted-foreground flex items-center gap-1">
+                          {recordingEnabled ? (
+                            <>
+                              <CircleDot className="size-3 text-red-500" />
+                              Recording
+                            </>
+                          ) : (
+                            "Off"
+                          )}
+                        </span>
+                      </div>
+                    </div>
 
                     {/* Actions */}
                     <div className="flex gap-2 pt-4 border-t">

@@ -707,12 +707,37 @@ A dedicated documentation site with: API reference (auto-generated from OpenAPI)
 
 ### US37 — Recording/VOD Playback (Priority: P2-Commercial)
 
-Cameras can optionally record streams to disk (fMP4 format via MediaMTX). Recordings are stored per camera with configurable retention (1–90 days). Users can browse recordings by date/time range and play back VOD through the same signed session mechanism.
+Cameras can optionally record streams to disk (fMP4 format via MediaMTX). Recordings are stored per camera with configurable retention (1–90 days, varying by plan). Users can browse recordings by date/time range and play back VOD through signed session URLs. Recording is a gated feature requiring a plan that includes `recording` (Starter+).
 
 **Acceptance:**
 
-1. **Given** a camera with recording enabled, **When** streams are active, **Then** recordings are stored in configurable storage (local disk or S3-compatible).
-2. **Given** an Operator viewing a camera, **When** they click "Recordings," **Then** they see a timeline of available recordings and can select a time range to play back.
+1. **Given** a camera with recording enabled, **When** streams are active, **Then** recordings are stored to local disk (fMP4 via MediaMTX) and metadata (start/end time, file path, size) is tracked in the `recordings` table via MediaMTX webhook events.
+2. **Given** an Operator viewing a camera detail sheet, **When** they toggle the Recording switch ON, **Then** MediaMTX is configured to record that camera's stream, and `__recording_enabled` tag is applied.
+3. **Given** an Operator viewing a camera detail sheet, **When** they toggle the Recording switch OFF, **Then** MediaMTX stops recording and the tag is removed.
+4. **Given** an Operator navigating to the Recordings page, **When** they select a camera and date range, **Then** they see a paginated table of recordings with start/end time, format, size, and a Play button.
+5. **Given** a user clicking Play on a recording, **When** the system creates a VOD session, **Then** a signed playback URL is returned and the video plays in the browser player.
+6. **Given** a Free plan user, **When** they attempt to enable recording, **Then** the system returns 403 with "Recording is not available on your plan."
+7. **Given** recordings past their retention period, **When** the purge job runs, **Then** both the database record AND physical file are deleted.
+
+**Plan Allocation:**
+- Free: No recording
+- Starter: Recording enabled, 7-day retention
+- Pro: Recording enabled, 30-day retention
+- Enterprise: Recording enabled, 90-day retention
+
+**Recording Lifecycle:**
+```
+MediaMTX starts recording
+  → POST /internal/recording/event (type: recording_start)
+  → Insert row in recordings table (endTime: null)
+
+MediaMTX stops recording
+  → POST /internal/recording/event (type: recording_end)
+  → Update row with endTime + sizeBytes
+
+Purge job runs
+  → Delete expired recordings (DB + file)
+```
 
 ### US38 — AI Analytics Hooks (Priority: P2-Commercial)
 
@@ -921,8 +946,11 @@ The platform provides webhook-style integration points for third-party AI analyt
 
 ### Recording/VOD
 
-- **FR-090**: System MUST support optional per-camera recording to disk (fMP4) or S3-compatible storage with configurable retention (1–90 days).
-- **FR-091**: System MUST provide VOD playback through the same signed session mechanism used for live streams.
+- **FR-090**: System MUST support optional per-camera recording to disk (fMP4) with configurable retention (1–90 days, varying by plan tier). Recording MUST be gated by the `recording` feature flag.
+- **FR-091**: System MUST provide VOD playback through signed session URLs with time-limited tokens.
+- **FR-092**: System MUST receive recording lifecycle events from MediaMTX via internal webhook (POST /internal/recording/event) and persist start time, end time, file path, and file size to the `recordings` table.
+- **FR-093**: System MUST provide a per-camera recording toggle (enable/disable) accessible via API and console UI, requiring `admin` or `operator` role.
+- **FR-094**: System MUST purge expired recordings by deleting both the database record AND the physical file from disk when retention period is exceeded.
 
 ### AI Integration Hooks
 

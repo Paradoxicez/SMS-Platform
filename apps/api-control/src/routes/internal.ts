@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { db } from "../db/client";
 import { cameras } from "../db/schema";
 import { AppError } from "../middleware/error-handler";
+import { handleRecordingEvent, type RecordingEvent } from "../services/recordings";
 import type { AppEnv } from "../types";
 
 const internalRouter = new Hono<AppEnv>();
@@ -148,6 +149,28 @@ internalRouter.get("/nodes", async (c) => {
 
   return c.json({
     data: nodes,
+    meta: {
+      request_id: crypto.randomUUID(),
+      timestamp: new Date().toISOString(),
+    },
+  });
+});
+
+// POST /internal/recording/event — MediaMTX recording webhook
+internalRouter.post("/recording/event", async (c) => {
+  const event = await c.req.json<RecordingEvent>();
+
+  if (!event.type || !event.path || !event.file_path || !event.start_time) {
+    return c.json(
+      { error: { code: "BAD_REQUEST", message: "Missing required fields: type, path, file_path, start_time" } },
+      400,
+    );
+  }
+
+  await handleRecordingEvent(event);
+
+  return c.json({
+    data: { status: "ok" },
     meta: {
       request_id: crypto.randomUUID(),
       timestamp: new Date().toISOString(),
