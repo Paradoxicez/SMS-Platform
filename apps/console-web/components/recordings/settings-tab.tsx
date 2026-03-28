@@ -60,10 +60,10 @@ interface ScopeOverride {
 
 interface StorageUsage {
   total_bytes: number
-  total_recordings: number
+  total_count: number
   top_cameras: {
     camera_id: string
-    size_bytes: number
+    total_bytes: number
     recording_count: number
   }[]
 }
@@ -690,7 +690,7 @@ export function RecordingSettingsTab() {
                     Total Recordings
                   </p>
                   <p className="text-2xl font-bold">
-                    {storageUsage.total_recordings.toLocaleString()}
+                    {storageUsage.total_count.toLocaleString()}
                   </p>
                 </div>
               </div>
@@ -717,7 +717,7 @@ export function RecordingSettingsTab() {
                             {cam.camera_id}
                           </TableCell>
                           <TableCell className="text-right">
-                            {formatBytes(cam.size_bytes)}
+                            {formatBytes(cam.total_bytes)}
                           </TableCell>
                           <TableCell className="text-right">
                             {cam.recording_count.toLocaleString()}
