@@ -111,24 +111,71 @@ Example:
 }
 ```
 
-The key is base64-encoded and provided to the customer as a single string.
+The key is base64url-encoded and provided to the customer as a single string.
+
+## Setup (One-Time)
+
+### Generate Ed25519 Key Pair
+
+Before generating any license keys, create the signing key pair:
+
+```bash
+pnpm license:keygen
+
+# Output:
+# ✓ Ed25519 key pair generated
+#   Private key: keys/license.private.key  (keep secret — never commit!)
+#   Public key:  keys/license.public.key   (embed in app)
+```
+
+- The **private key** stays with the vendor only — used to sign license keys
+- The **public key** is embedded in the application — used to verify signatures
+- Both files are excluded from git via `.gitignore` (`*.key`)
 
 ## Generating a License Key
 
 ```bash
-# From project root
 pnpm license:generate \
   --tenant "Company ABC" \
   --plan pro \
   --cameras 100 \
-  --addons recording \
+  --addons recording ai \
   --expires 2027-03-26
+```
 
-# Output:
-# License Key: eyJpZCI6IkxJQy0yMDI2LTAwMSIs...
-# Plan: pro (100 cameras, 10 projects, 20 users)
-# Features: hls, webrtc, embed, api_access, recording, ...
-# Expires: 2027-03-26
+### CLI Flags
+
+| Flag | Required | Default | Description |
+|------|----------|---------|-------------|
+| `--tenant <name>` | Yes | — | Customer/organization name |
+| `--plan <tier>` | Yes | — | Plan tier: `free`, `starter`, `pro`, `enterprise` |
+| `--cameras <n>` | No | Plan default | Max cameras |
+| `--projects <n>` | No | Plan default | Max projects |
+| `--users <n>` | No | Plan default | Max users |
+| `--sites <n>` | No | Plan default | Max sites |
+| `--api-keys <n>` | No | Plan default | Max API keys |
+| `--viewer-hours <n>` | No | Plan default | Viewer hours quota |
+| `--retention-days <n>` | No | Plan default | Recording retention days |
+| `--addons <names...>` | No | (none) | Addon names (space or comma-separated) |
+| `--expires <date>` | No | +1 year | Expiry date (YYYY-MM-DD) |
+| `--private-key <path>` | No | `keys/license.private.key` | Path to private key |
+
+### Examples
+
+```bash
+# Minimal: use all plan defaults
+pnpm license:generate --tenant "Acme Corp" --plan starter
+
+# Custom limits with addons (space-separated)
+pnpm license:generate --tenant "Acme Corp" --plan starter \
+  --cameras 80 --addons recording webhooks
+
+# Custom limits with addons (comma-separated)
+pnpm license:generate --tenant "Acme Corp" --plan pro \
+  --cameras 200 --addons recording,ai,sso --expires 2028-01-01
+
+# Enterprise with all defaults (unlimited)
+pnpm license:generate --tenant "Big Corp" --plan enterprise
 ```
 
 ## Activating a License (On-Prem)
@@ -176,6 +223,101 @@ curl http://localhost:3001/api/v1/license/status
   }
 }
 ```
+
+## Upgrading / Replacing a License Key
+
+When a customer upgrades their plan, purchases more cameras, or renews an expiring license, the vendor generates a new key and the customer activates it — **no restart required**.
+
+### Upgrade Flow
+
+```
+1. Vendor generates new key:
+   pnpm license:generate --tenant "Company ABC" --plan pro --cameras 500
+
+2. Customer activates in Settings > License (or via API)
+
+3. Old license is deactivated, new one takes effect immediately
+```
+
+### Via Console UI
+
+1. Go to **Settings > License**
+2. Paste the new license key (replaces existing)
+3. Click **Activate**
+4. Limits and features update immediately
+
+### Via API
+
+```bash
+# Same endpoint as initial activation — replaces existing license
+curl -X POST http://localhost:3001/api/v1/license/activate \
+  -H "Content-Type: application/json" \
+  -d '{ "key": "NEW_LICENSE_KEY_HERE" }'
+```
+
+### What Happens on Upgrade
+
+- Previous license is deactivated in the database
+- New license limits apply immediately (e.g., cameras: 50 → 500)
+- New features are unlocked instantly
+- Downgrade is also supported (features/limits may decrease)
+- Existing streams continue uninterrupted
+- Audit log records the change
+
+## Online Heartbeat (Optional)
+
+For deployments with internet access, the platform can periodically validate the license with the vendor's server. This enables license revocation and deployment telemetry.
+
+### Configuration
+
+Set the `LICENSE_HEARTBEAT_URL` environment variable:
+
+```env
+# .env
+LICENSE_HEARTBEAT_URL=https://license.your-vendor.com/api/heartbeat
+```
+
+- **Empty or unset** = heartbeat disabled (fully offline mode)
+- When set, the platform sends a POST every **24 hours**
+
+### What Gets Sent
+
+```json
+{
+  "license_id": "LIC-2026-001",
+  "camera_count": 47,
+  "platform_version": "1.2.0",
+  "timestamp": "2026-03-28T12:00:00Z"
+}
+```
+
+### What Gets Returned
+
+```json
+{ "status": "valid" }
+```
+or
+```json
+{ "status": "revoked", "reason": "License transferred to new deployment" }
+```
+
+### Offline Tolerance
+
+- Successful heartbeat responses are **cached for 72 hours**
+- If the server is unreachable, the platform continues operating normally using the cache
+- If the cache expires (>72h offline), a warning is logged but the platform is **not blocked**
+- If the response is `"revoked"`, the platform enters the same grace period flow as an expired license
+
+## Environment Variables Reference
+
+All license-related env vars (see `.env.example` for a complete template):
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `DEPLOYMENT_MODE` | Yes (on-prem) | (cloud) | Set to `onprem` to enable license checking |
+| `LICENSE_KEY` | No | — | Fallback license key (DB takes precedence) |
+| `LICENSE_PUBLIC_KEY` | No | — | Hex-encoded public key (alternative to file) |
+| `LICENSE_HEARTBEAT_URL` | No | — | Vendor heartbeat URL (empty = disabled) |
 
 ## Expiry & Grace Period
 
