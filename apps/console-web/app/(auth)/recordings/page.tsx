@@ -15,6 +15,7 @@ import { DateRangePicker, type DateRange } from "@/components/recordings/date-ra
 import { RecordingCard } from "@/components/recordings/recording-card"
 import { RecordingTable } from "@/components/recordings/recording-table"
 import { BulkActions } from "@/components/recordings/bulk-actions"
+import { RecordingSettingsTab } from "@/components/recordings/settings-tab"
 import { apiClient } from "@/lib/api-client"
 import { toast } from "sonner"
 import type { Recording } from "@/components/recordings/types"
@@ -258,7 +259,7 @@ export default function RecordingsPage() {
         </TabsContent>
 
         <TabsContent value="settings">
-          <div>Settings tab coming soon</div>
+          <RecordingSettingsTab />
         </TabsContent>
       </Tabs>
     </div>
