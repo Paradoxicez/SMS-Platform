@@ -202,8 +202,29 @@ export async function loadLicenseOnStartup(tenantId: string): Promise<void> {
 
 /**
  * Get cached license status (for middleware — fast, no DB call).
+ * Re-evaluates expiry status from the cached payload to handle
+ * time-based transitions (active → expiring → grace_period → read_only).
  */
 export function getCachedLicenseStatus(): LicenseStatus | null {
+  if (!cachedStatus || !cachedPayload) return cachedStatus;
+
+  // Re-evaluate status from payload to handle time-based transitions
+  const currentStatus = getPayloadStatus(cachedPayload);
+  if (currentStatus !== cachedStatus.status) {
+    const limits = resolveLimits(cachedPayload.plan as PlanTier, {
+      cameras: cachedPayload.limits.cameras,
+      projects: cachedPayload.limits.projects,
+      users: cachedPayload.limits.users,
+      sites: cachedPayload.limits.sites,
+      apiKeys: cachedPayload.limits.api_keys,
+      viewerHours: cachedPayload.limits.viewer_hours,
+      retentionDays: cachedPayload.limits.retention_days,
+    });
+    const features = resolveFeatures(cachedPayload.plan as PlanTier, cachedPayload.addons);
+    cachedStatus = buildStatus(cachedPayload, limits, features);
+    setLicenseMetrics(cachedStatus.status, cachedStatus.daysRemaining ?? 0, cachedPayload.plan);
+  }
+
   return cachedStatus;
 }
 
@@ -246,6 +267,23 @@ async function loadFromDb(tenantId: string): Promise<LicenseStatus | null> {
       .limit(1);
 
     if (!record) return null;
+
+    // Check if license was revoked via heartbeat
+    if (record.revokedAt) {
+      console.warn(JSON.stringify({
+        level: "warn",
+        service: "license",
+        message: "License was revoked — entering read-only mode",
+        licenseId: record.licenseId,
+        revokedAt: record.revokedAt,
+      }));
+      return {
+        valid: false,
+        status: "read_only",
+        licenseId: record.licenseId,
+        reason: record.revokedReason ?? "License revoked by vendor",
+      };
+    }
 
     // Verify signature is still valid
     const decoded = decodeLicense(record.licenseKey);

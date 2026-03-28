@@ -25,4 +25,6 @@ export const licenses = pgTable("licenses", {
     .notNull()
     .defaultNow(),
   isActive: boolean("is_active").notNull().default(true),
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  revokedReason: varchar("revoked_reason", { length: 255 }),
 }).enableRLS();

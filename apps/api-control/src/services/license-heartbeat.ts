@@ -1,11 +1,13 @@
 /**
  * License heartbeat — optional periodic validation with vendor's license server.
  * Only active when LICENSE_HEARTBEAT_URL is configured.
+ *
+ * Revocation state is persisted to DB so it survives restarts.
  */
 
-import { count } from "drizzle-orm";
+import { count, eq, and } from "drizzle-orm";
 import { db } from "../db/client";
-import { cameras } from "../db/schema";
+import { cameras, licenses } from "../db/schema";
 import { getCachedLicenseStatus } from "./license";
 import { recordHeartbeat } from "../routes/health";
 
@@ -67,6 +69,49 @@ export function isRevoked(): boolean {
   return lastValidResponse?.status === "revoked";
 }
 
+/**
+ * Check if the active license in DB was previously revoked.
+ * Called on startup to restore revocation state.
+ */
+export async function checkRevocationOnStartup(tenantId: string): Promise<boolean> {
+  try {
+    const [record] = await db
+      .select({ revokedAt: licenses.revokedAt })
+      .from(licenses)
+      .where(and(eq(licenses.tenantId, tenantId), eq(licenses.isActive, true)))
+      .limit(1);
+
+    if (record?.revokedAt) {
+      lastValidResponse = { timestamp: Date.now(), status: "revoked" };
+      return true;
+    }
+  } catch {
+    // DB not ready
+  }
+  return false;
+}
+
+async function persistRevocation(licenseId: string, reason?: string): Promise<void> {
+  try {
+    await db
+      .update(licenses)
+      .set({
+        revokedAt: new Date(),
+        revokedReason: reason ?? "Revoked via heartbeat",
+      })
+      .where(eq(licenses.licenseId, licenseId));
+  } catch (err) {
+    console.error(
+      JSON.stringify({
+        level: "error",
+        service: "license-heartbeat",
+        message: "Failed to persist revocation to DB",
+        error: err instanceof Error ? err.message : String(err),
+      }),
+    );
+  }
+}
+
 async function sendHeartbeat(url: string): Promise<void> {
   const license = getCachedLicenseStatus();
   if (!license?.licenseId) return;
@@ -111,11 +156,14 @@ async function sendHeartbeat(url: string): Promise<void> {
       recordHeartbeat(true);
 
       if (data.status === "revoked") {
+        // Persist revocation to DB so it survives restarts
+        await persistRevocation(license.licenseId, data.reason);
+
         console.warn(
           JSON.stringify({
             level: "warn",
             service: "license-heartbeat",
-            message: "License revoked by vendor",
+            message: "License revoked by vendor — persisted to DB",
             reason: data.reason,
             licenseId: license.licenseId,
           }),
