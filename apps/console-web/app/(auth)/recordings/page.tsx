@@ -1,90 +1,161 @@
-"use client";
+"use client"
 
-import { useEffect, useState } from "react";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { formatDateTime } from "@/lib/format-date";
-import { apiClient } from "../../../lib/api-client";
+import { useEffect, useState, useCallback } from "react"
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { TablePagination } from "@/components/ui/table-pagination"
+import { ViewToggle } from "@/components/recordings/view-toggle"
+import { DateRangePicker, type DateRange } from "@/components/recordings/date-range-picker"
+import { RecordingCard } from "@/components/recordings/recording-card"
+import { RecordingTable } from "@/components/recordings/recording-table"
+import { BulkActions } from "@/components/recordings/bulk-actions"
+import { apiClient } from "@/lib/api-client"
+import { toast } from "sonner"
+import type { Recording } from "@/components/recordings/types"
 
-interface Camera {
-  id: string;
-  name: string;
+interface CameraOption {
+  id: string
+  name: string
 }
 
-interface Recording {
-  id: string;
-  cameraId: string;
-  startTime: string;
-  endTime: string | null;
-  fileFormat: string;
-  sizeBytes: number;
-  retentionDays: number;
-  storageType: string;
+const PAGE_SIZE = 24
+
+function getDefaultDateRange(): DateRange {
+  const to = new Date()
+  const from = new Date()
+  from.setDate(from.getDate() - 7)
+  return {
+    from: from.toISOString().split("T")[0],
+    to: to.toISOString().split("T")[0],
+  }
 }
 
 export default function RecordingsPage() {
-  const [cameras, setCameras] = useState<Camera[]>([]);
-  const [selectedCamera, setSelectedCamera] = useState<string>("");
-  const [recordings, setRecordings] = useState<Recording[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
-  const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
+  const [cameras, setCameras] = useState<CameraOption[]>([])
+  const [selectedCamera, setSelectedCamera] = useState<string>("all")
+  const [dateRange, setDateRange] = useState<DateRange>(getDefaultDateRange)
+  const [viewMode, setViewMode] = useState<"grid" | "table">("grid")
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [page, setPage] = useState(1)
+  const [recordings, setRecordings] = useState<Recording[]>([])
+  const [totalItems, setTotalItems] = useState(0)
+  const [loading, setLoading] = useState(false)
 
+  // Fetch camera list
   useEffect(() => {
     async function fetchCameras() {
       try {
-        const res = await apiClient.listCameras({ per_page: 100 });
-        setCameras(res.data.map((c: any) => ({ id: c.id, name: c.name })));
+        const res = await apiClient.listCameras({ per_page: 200 })
+        setCameras(res.data.map((c: any) => ({ id: c.id, name: c.name })))
       } catch {
-        // Error fetching cameras
+        // Silent fail - cameras dropdown will be empty
       }
     }
-    fetchCameras();
-  }, []);
+    fetchCameras()
+  }, [])
 
-  async function fetchRecordings() {
-    if (!selectedCamera) return;
-    setLoading(true);
+  // Fetch recordings when filters change
+  const fetchRecordings = useCallback(async () => {
+    setLoading(true)
     try {
-      const params = new URLSearchParams();
-      if (dateFrom) params.set("from", new Date(dateFrom).toISOString());
-      if (dateTo) params.set("to", new Date(dateTo).toISOString());
+      const params = new URLSearchParams()
+      if (dateRange.from) params.set("from", new Date(dateRange.from).toISOString())
+      if (dateRange.to) params.set("to", new Date(dateRange.to + "T23:59:59").toISOString())
+      params.set("page", String(page))
+      params.set("per_page", String(PAGE_SIZE))
 
-      const res = await apiClient.get<{ data: Recording[] }>(
-        `/cameras/${selectedCamera}/recordings?${params.toString()}`,
-      );
-      setRecordings(res.data);
+      let path: string
+      if (selectedCamera && selectedCamera !== "all") {
+        path = `/cameras/${selectedCamera}/recordings?${params.toString()}`
+      } else {
+        path = `/recordings?${params.toString()}`
+      }
+
+      const res = await apiClient.get<{
+        data: Recording[]
+        pagination?: { total: number; total_pages: number }
+      }>(path)
+
+      setRecordings(res.data)
+      setTotalItems(res.pagination?.total ?? res.data.length)
     } catch {
-      // Error fetching recordings
+      setRecordings([])
+      setTotalItems(0)
     } finally {
-      setLoading(false);
+      setLoading(false)
+    }
+  }, [selectedCamera, dateRange, page])
+
+  useEffect(() => {
+    fetchRecordings()
+  }, [fetchRecordings])
+
+  // Reset page when filters change
+  useEffect(() => {
+    setPage(1)
+  }, [selectedCamera, dateRange])
+
+  // Enrich recordings with camera names
+  const enrichedRecordings = recordings.map((rec) => {
+    if (rec.cameraName) return rec
+    const cam = cameras.find((c) => c.id === rec.cameraId)
+    return { ...rec, cameraName: cam?.name ?? undefined }
+  })
+
+  // Selection handlers
+  function handleSelectChange(id: string, selected: boolean) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (selected) next.add(id)
+      else next.delete(id)
+      return next
+    })
+  }
+
+  function handleSelectAll(selected: boolean) {
+    if (selected) {
+      setSelectedIds(new Set(enrichedRecordings.map((r) => r.id)))
+    } else {
+      setSelectedIds(new Set())
     }
   }
 
-  async function handlePlayback(recordingId: string) {
+  function handleDeselectAll() {
+    setSelectedIds(new Set())
+  }
+
+  async function handleBulkDownload() {
+    const selected = enrichedRecordings.filter((r) => selectedIds.has(r.id))
+    for (const rec of selected) {
+      const link = document.createElement("a")
+      link.href = `/api/v1/recordings/${rec.id}/download`
+      link.download = `${rec.cameraName ?? rec.cameraId}_${rec.startTime}.mp4`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+    }
+    toast.success(`Downloading ${selected.length} recording(s)`)
+  }
+
+  async function handleBulkDelete() {
+    const ids = Array.from(selectedIds)
     try {
-      const res = await apiClient.post<{ data: { playback_url: string } }>(
-        `/recordings/${recordingId}/playback`,
-        {},
-      );
-      setPlaybackUrl(res.data.playback_url);
+      await Promise.all(ids.map((id) => apiClient.delete(`/recordings/${id}`)))
+      toast.success(`Deleted ${ids.length} recording(s)`)
+      setSelectedIds(new Set())
+      fetchRecordings()
     } catch {
-      // Error creating playback session
+      toast.error("Failed to delete some recordings")
     }
   }
 
-  function formatBytes(bytes: number): string {
-    if (bytes === 0) return "0 B";
-    const k = 1024;
-    const sizes = ["B", "KB", "MB", "GB"];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`;
-  }
+  const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE))
 
   return (
     <div className="space-y-6">
@@ -95,121 +166,101 @@ export default function RecordingsPage() {
         </p>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Search Recordings</CardTitle>
-          <CardDescription>
-            Select a camera and date range to find recordings.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap gap-4 items-end">
-            <div className="space-y-2">
-              <Label>Camera</Label>
-              <select
-                className="flex h-9 w-[250px] rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
-                value={selectedCamera}
-                onChange={(e) => setSelectedCamera(e.target.value)}
-              >
-                <option value="">Select a camera</option>
+      <Tabs defaultValue="browse">
+        <TabsList>
+          <TabsTrigger value="browse">Browse</TabsTrigger>
+          <TabsTrigger value="settings">Settings</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="browse" className="space-y-4">
+          {/* Filters bar */}
+          <div className="flex flex-wrap items-center gap-3">
+            <Select value={selectedCamera} onValueChange={setSelectedCamera}>
+              <SelectTrigger className="w-[200px]">
+                <SelectValue placeholder="All cameras" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All cameras</SelectItem>
                 {cameras.map((cam) => (
-                  <option key={cam.id} value={cam.id}>
+                  <SelectItem key={cam.id} value={cam.id}>
                     {cam.name}
-                  </option>
+                  </SelectItem>
                 ))}
-              </select>
-            </div>
-            <div className="space-y-2">
-              <Label>From</Label>
-              <Input
-                type="date"
-                value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
-                className="w-[180px]"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>To</Label>
-              <Input
-                type="date"
-                value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
-                className="w-[180px]"
-              />
-            </div>
-            <Button onClick={fetchRecordings} disabled={!selectedCamera || loading}>
-              {loading ? "Searching..." : "Search"}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+              </SelectContent>
+            </Select>
 
-      {recordings.length > 0 && (
-        <div>
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <h2 className="text-lg font-semibold">Results</h2>
-              <p className="text-sm text-muted-foreground">{recordings.length} recording(s) found</p>
-            </div>
-          </div>
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Start Time</TableHead>
-                  <TableHead>End Time</TableHead>
-                  <TableHead>Format</TableHead>
-                  <TableHead>Size</TableHead>
-                  <TableHead>Storage</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {recordings.map((rec) => (
-                  <TableRow key={rec.id}>
-                    <TableCell className="text-sm">
-                      {formatDateTime(rec.startTime)}
-                    </TableCell>
-                    <TableCell className="text-sm">
-                      {rec.endTime ? formatDateTime(rec.endTime) : "In progress"}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="secondary">{rec.fileFormat}</Badge>
-                    </TableCell>
-                    <TableCell className="text-sm">{formatBytes(rec.sizeBytes)}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{rec.storageType}</Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Button size="sm" onClick={() => handlePlayback(rec.id)}>
-                        Play
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        </div>
-      )}
+            <DateRangePicker value={dateRange} onChange={setDateRange} />
 
-      {playbackUrl && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Playback</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="aspect-video bg-black rounded-lg flex items-center justify-center">
-              <video
-                src={playbackUrl}
-                controls
-                autoPlay
-                className="w-full h-full rounded-lg"
-              />
+            <div className="ml-auto">
+              <ViewToggle view={viewMode} onViewChange={setViewMode} />
             </div>
-          </CardContent>
-        </Card>
-      )}
+          </div>
+
+          {/* Loading state */}
+          {loading && (
+            <div className="flex items-center justify-center py-12">
+              <div className="size-8 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground" />
+            </div>
+          )}
+
+          {/* Content */}
+          {!loading && viewMode === "grid" && (
+            <>
+              {enrichedRecordings.length === 0 ? (
+                <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-16 text-center">
+                  <p className="text-sm text-muted-foreground">No recordings found.</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Try adjusting your filters or date range.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                  {enrichedRecordings.map((rec) => (
+                    <RecordingCard
+                      key={rec.id}
+                      recording={rec}
+                      selected={selectedIds.has(rec.id)}
+                      onSelectChange={handleSelectChange}
+                    />
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+
+          {!loading && viewMode === "table" && (
+            <RecordingTable
+              recordings={enrichedRecordings}
+              selectedIds={selectedIds}
+              onSelectChange={handleSelectChange}
+              onSelectAll={handleSelectAll}
+            />
+          )}
+
+          {/* Pagination */}
+          {!loading && totalItems > PAGE_SIZE && (
+            <TablePagination
+              page={page}
+              totalPages={totalPages}
+              totalItems={totalItems}
+              pageSize={PAGE_SIZE}
+              onPageChange={setPage}
+            />
+          )}
+
+          {/* Bulk actions */}
+          <BulkActions
+            selectedCount={selectedIds.size}
+            onDownload={handleBulkDownload}
+            onDelete={handleBulkDelete}
+            onDeselectAll={handleDeselectAll}
+          />
+        </TabsContent>
+
+        <TabsContent value="settings">
+          <div>Settings tab coming soon</div>
+        </TabsContent>
+      </Tabs>
     </div>
-  );
+  )
 }

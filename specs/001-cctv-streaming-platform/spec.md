@@ -707,23 +707,62 @@ A dedicated documentation site with: API reference (auto-generated from OpenAPI)
 
 ### US37 — Recording/VOD Playback (Priority: P2-Commercial)
 
-Cameras can optionally record streams to disk (fMP4 format via MediaMTX). Recordings are stored per camera with configurable retention (1–90 days, varying by plan). Users can browse recordings by date/time range and play back VOD through signed session URLs. Recording is a gated feature requiring a plan that includes `recording` (Starter+).
+Cameras can optionally record streams to disk (fMP4 format via MediaMTX). Recording configuration is scope-based with inheritance: Global → Site → Project → Camera. Users browse recordings in a Card view (default, with YouTube-style hover preview) or Table view, and play back VOD through signed session URLs. Recording is a gated feature requiring a plan that includes `recording` (Starter+).
 
-**Acceptance:**
+**Acceptance — Recording Engine:**
 
 1. **Given** a camera with recording enabled, **When** streams are active, **Then** recordings are stored to local disk (fMP4 via MediaMTX) and metadata (start/end time, file path, size) is tracked in the `recordings` table via MediaMTX webhook events.
-2. **Given** an Operator viewing a camera detail sheet, **When** they toggle the Recording switch ON, **Then** MediaMTX is configured to record that camera's stream, and `__recording_enabled` tag is applied.
-3. **Given** an Operator viewing a camera detail sheet, **When** they toggle the Recording switch OFF, **Then** MediaMTX stops recording and the tag is removed.
-4. **Given** an Operator navigating to the Recordings page, **When** they select a camera and date range, **Then** they see a paginated table of recordings with start/end time, format, size, and a Play button.
-5. **Given** a user clicking Play on a recording, **When** the system creates a VOD session, **Then** a signed playback URL is returned and the video plays in the browser player.
-6. **Given** a Free plan user, **When** they attempt to enable recording, **Then** the system returns 403 with "Recording is not available on your plan."
-7. **Given** recordings past their retention period, **When** the purge job runs, **Then** both the database record AND physical file are deleted.
+2. **Given** an Operator viewing a camera detail sheet, **When** they toggle the Recording switch ON, **Then** MediaMTX is configured to record that camera's stream.
+3. **Given** a Free plan user, **When** they attempt to enable recording, **Then** the system returns 403 with "Recording is not available on your plan."
+4. **Given** recordings past their retention period, **When** the purge job runs, **Then** both the database record AND physical file are deleted.
+
+**Acceptance — Browse Recordings (Card + Table View):**
+
+5. **Given** an Operator on the Recordings page, **When** the page loads, **Then** recordings are shown as a grid of Cards (default view) with thumbnails from the thumbnail worker.
+6. **Given** a user hovering over a recording card, **When** the mouse enters, **Then** a muted video preview plays automatically (YouTube-style); mouse leave pauses and shows thumbnail.
+7. **Given** a user clicking the view toggle, **When** they switch to Table view, **Then** recordings display in a sortable table with columns: thumbnail, camera, start time, duration, size, actions.
+8. **Given** a user selecting a date range (single date-range picker, not separate from/to), **When** they apply the filter, **Then** only recordings within that range are shown with pagination.
+9. **Given** a user selecting multiple recordings via checkboxes, **When** they click Download, **Then** files download one by one (not ZIP).
+10. **Given** a user clicking a recording card or row, **When** the detail page opens, **Then** they see the Recording Detail page for that camera.
+
+**Acceptance — Recording Detail (Per-Camera):**
+
+11. **Given** a user on the Recording Detail page, **When** it loads, **Then** they see: HLS VOD player, timeline bar showing recording coverage for the day, clips table, and camera recording info.
+12. **Given** a timeline bar for a day, **When** a user clicks a position on the timeline, **Then** the player seeks to that timestamp.
+13. **Given** a clips table, **When** a user clicks ▶ on a clip, **Then** the player plays that clip; clicking ⬇ downloads the file.
+14. **Given** day navigation arrows, **When** a user clicks ◀ or ▶, **Then** the timeline and clips table update for the previous/next day.
+
+**Acceptance — Settings (Global + Scope Overrides):**
+
+15. **Given** an Admin on the Settings tab, **When** they configure global recording settings (mode, retention, storage, quality), **Then** the settings apply as defaults for all cameras.
+16. **Given** scope-based overrides, **When** an Admin sets retention=90 days on a Site, **Then** all cameras in that site inherit 90 days unless overridden at project or camera level.
+17. **Given** the Settings tab, **When** an Admin views storage usage, **Then** they see: total used/available, estimated days remaining, top cameras by usage.
+
+**Recording Scope Inheritance:**
+```
+Global Default (Settings tab)
+ └── Site override
+      └── Project override
+           └── Camera override (closest scope wins)
+```
+
+**Recording Modes:**
+- Continuous — record 24/7
+- Scheduled — record during configured time windows
+- Event-based — record on motion detection (requires AI integration)
+
+**Settings Config:**
+- Mode: continuous / scheduled / event-based
+- Retention: 7-90 days (limited by plan)
+- Storage: local / S3-compatible
+- Quality: format (fMP4/MKV), resolution (original/720p/480p), max segment size
+- Auto-purge: on/off
 
 **Plan Allocation:**
 - Free: No recording
-- Starter: Recording enabled, 7-day retention
-- Pro: Recording enabled, 30-day retention
-- Enterprise: Recording enabled, 90-day retention
+- Starter: Recording enabled, max 7-day retention
+- Pro: Recording enabled, max 30-day retention
+- Enterprise: Recording enabled, max 90-day retention
 
 **Recording Lifecycle:**
 ```
@@ -734,6 +773,9 @@ MediaMTX starts recording
 MediaMTX stops recording
   → POST /internal/recording/event (type: recording_end)
   → Update row with endTime + sizeBytes
+
+Thumbnail worker captures frame
+  → Stored as thumbnail for recording card
 
 Purge job runs
   → Delete expired recordings (DB + file)
@@ -951,10 +993,17 @@ The platform provides webhook-style integration points for third-party AI analyt
 - **FR-092**: System MUST receive recording lifecycle events from MediaMTX via internal webhook (POST /internal/recording/event) and persist start time, end time, file path, and file size to the `recordings` table.
 - **FR-093**: System MUST provide a per-camera recording toggle (enable/disable) accessible via API and console UI, requiring `admin` or `operator` role.
 - **FR-094**: System MUST purge expired recordings by deleting both the database record AND the physical file from disk when retention period is exceeded.
+- **FR-095**: System MUST support scope-based recording configuration with inheritance: Global → Site → Project → Camera. The closest scope override wins.
+- **FR-096**: System MUST store recording configuration in a `recording_configs` table with scope type (global/site/project/camera), scope ID, and settings (mode, retention, storage, quality).
+- **FR-097**: System MUST display recordings in a Card view (default) with thumbnails from the thumbnail worker. Hovering a card plays a muted video preview (YouTube-style).
+- **FR-098**: System MUST provide a Table view as an alternative, with sortable columns and inline thumbnails, switchable via a view toggle.
+- **FR-099**: System MUST provide a Recording Detail page per camera, showing: HLS VOD player, timeline bar (clickable to seek), day navigation, clips table, and camera recording info with inheritance source.
+- **FR-100**: System MUST use a single date-range picker component (not separate from/to fields) for filtering recordings by date range.
+- **FR-101**: System MUST support bulk selection of recordings with per-file download (not ZIP).
 
 ### AI Integration Hooks
 
-- **FR-092**: System MUST provide configurable AI integration endpoints where periodic snapshots from selected cameras are sent for analysis.
+- **FR-102**: System MUST provide configurable AI integration endpoints where periodic snapshots from selected cameras are sent for analysis.
 - **FR-093**: AI analysis results MUST be stored as camera events and trigger configured webhooks/notifications.
 
 ### Key Entities

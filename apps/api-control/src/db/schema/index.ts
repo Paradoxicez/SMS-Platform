@@ -26,3 +26,4 @@ export { recordings } from "./recordings";
 export { aiIntegrations, aiEvents } from "./ai-integrations";
 export { verificationTokens } from "./verification-tokens";
 export { licenses } from "./licenses";
+export { recordingConfigs } from "./recording-configs";

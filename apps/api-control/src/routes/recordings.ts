@@ -8,6 +8,13 @@ import {
   listRecordings,
   createVodSession,
 } from "../services/recordings";
+import {
+  resolveEffectiveConfig,
+  upsertConfig,
+  deleteConfig,
+  getStorageUsage,
+  type ScopeType,
+} from "../services/recording-config";
 import type { AppEnv } from "../types";
 
 const enableRecordingSchema = z.object({
@@ -118,4 +125,61 @@ recordingsRouter.post(
   },
 );
 
+// ─── Recording Config Endpoints ─────────────────────────────────────────────
+
+// GET /recording-config/:scopeType/:scopeId? — get effective config
+recordingsRouter.get(
+  "/recording-config/:scopeType/:scopeId?",
+  requireRole("admin", "operator"),
+  async (c) => {
+    const tenantId = c.get("tenantId");
+    const scopeId = c.req.param("scopeId");
+
+    const config = await resolveEffectiveConfig(tenantId, scopeId ?? "", undefined, undefined);
+    return c.json({ data: config });
+  },
+);
+
+// PUT /recording-config/:scopeType/:scopeId? — upsert config
+recordingsRouter.put(
+  "/recording-config/:scopeType/:scopeId?",
+  requireRole("admin"),
+  requireFeature("recording"),
+  async (c) => {
+    const tenantId = c.get("tenantId");
+    const scopeType = c.req.param("scopeType") as ScopeType;
+    const scopeId = c.req.param("scopeId");
+    const body = await c.req.json<Record<string, unknown>>();
+
+    const result = await upsertConfig(tenantId, scopeType, scopeId, body);
+    return c.json({ data: result });
+  },
+);
+
+// DELETE /recording-config/:scopeType/:scopeId — remove override
+recordingsRouter.delete(
+  "/recording-config/:scopeType/:scopeId",
+  requireRole("admin"),
+  async (c) => {
+    const tenantId = c.get("tenantId");
+    const scopeType = c.req.param("scopeType") as ScopeType;
+    const scopeId = c.req.param("scopeId");
+
+    const deleted = await deleteConfig(tenantId, scopeType, scopeId);
+    return c.json({ data: { deleted } });
+  },
+);
+
+// GET /recording-config/storage-usage — storage summary
+recordingsRouter.get(
+  "/recording-config/storage-usage",
+  requireRole("admin", "operator"),
+  async (c) => {
+    const tenantId = c.get("tenantId");
+    const usage = await getStorageUsage(tenantId);
+    return c.json({ data: usage });
+  },
+);
+
 export { recordingsRouter };
+
