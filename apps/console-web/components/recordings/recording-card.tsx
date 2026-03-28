@@ -67,7 +67,7 @@ export function RecordingCard({ recording, selected, onSelectChange }: Recording
     if (target.closest("[data-slot='checkbox']") || target.closest("[data-role='checkbox-area']")) {
       return
     }
-    const dateStr = recording.startTime.split("T")[0]!
+    const dateStr = new Date(recording.startTime).toISOString().split("T")[0]!
     router.push(`/recordings/${recording.cameraId}?date=${dateStr}`)
   }
 

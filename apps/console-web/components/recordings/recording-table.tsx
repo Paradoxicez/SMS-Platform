@@ -75,7 +75,7 @@ export function RecordingTable({
   const someSelected = recordings.some((r) => selectedIds.has(r.id)) && !allSelected
 
   function handleRowClick(rec: Recording) {
-    const dateStr = rec.startTime.split("T")[0]!
+    const dateStr = new Date(rec.startTime).toISOString().split("T")[0]!
     router.push(`/recordings/${rec.cameraId}?date=${dateStr}`)
   }
 
