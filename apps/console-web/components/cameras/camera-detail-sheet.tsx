@@ -179,9 +179,12 @@ export function CameraDetailSheet({
         : `/cameras/${camera.id}/recording/disable`;
       await apiClient.post(endpoint, {});
       setRecordingEnabled(enabled);
-    } catch {
-      // Revert on error
+    } catch (err) {
+      // Revert on error + show error
       setRecordingEnabled(!enabled);
+      const message = err instanceof Error ? err.message : "Failed to toggle recording";
+      console.error("Recording toggle error:", message);
+      alert(message);
     } finally {
       setRecordingLoading(false);
     }
