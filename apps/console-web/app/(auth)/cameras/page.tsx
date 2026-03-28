@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { Suspense, useEffect, useState, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -87,7 +87,15 @@ function StatusBadge({ status }: { status: HealthStatus }) {
   }
 }
 
-export default function CamerasPage() {
+export default function CamerasPageWrapper() {
+  return (
+    <Suspense fallback={<div className="p-6">Loading...</div>}>
+      <CamerasPage />
+    </Suspense>
+  );
+}
+
+function CamerasPage() {
   const searchParams = useSearchParams();
   const importParam = searchParams.get("import");
   const preselectedProfileParam = searchParams.get("profile");
