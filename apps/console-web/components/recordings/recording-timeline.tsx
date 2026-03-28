@@ -4,7 +4,7 @@ import { useCallback, useRef } from "react";
 
 interface TimelineRecording {
   start_time: string;
-  end_time: string;
+  end_time: string | null;
 }
 
 interface RecordingTimelineProps {
@@ -62,12 +62,18 @@ export function RecordingTimeline({
         {/* Recording segments */}
         {recordings.map((rec, i) => {
           const start = getPercent(new Date(rec.start_time));
-          const end = getPercent(new Date(rec.end_time));
-          const width = end - start;
+          // If no end_time (in progress), show segment up to current time or a minimum width
+          const end = rec.end_time
+            ? getPercent(new Date(rec.end_time))
+            : currentTime
+              ? getPercent(currentTime)
+              : Math.min(start + 2, 100); // minimum 2% width for visibility
+          const width = Math.max(end - start, 0.5); // minimum 0.5% so it's visible
+          const isInProgress = !rec.end_time;
           return (
             <div
               key={i}
-              className="absolute top-0 h-full bg-green-500/70"
+              className={`absolute top-0 h-full ${isInProgress ? "bg-amber-500/70 animate-pulse" : "bg-green-500/70"}`}
               style={{ left: `${start}%`, width: `${width}%` }}
             />
           );

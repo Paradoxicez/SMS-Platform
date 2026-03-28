@@ -363,19 +363,24 @@ function RecordingDetailContent() {
                 </TableHeader>
                 <TableBody>
                   {recordings.map((rec) => {
-                    const durationMs =
-                      new Date(rec.end_time).getTime() -
-                      new Date(rec.start_time).getTime();
+                    const hasEnd = rec.end_time != null;
+                    const durationMs = hasEnd
+                      ? new Date(rec.end_time!).getTime() - new Date(rec.start_time).getTime()
+                      : 0;
                     return (
                       <TableRow key={rec.id}>
                         <TableCell className="text-sm">
                           {formatTime(rec.start_time)}
                         </TableCell>
                         <TableCell className="text-sm">
-                          {formatTime(rec.end_time)}
+                          {hasEnd ? formatTime(rec.end_time!) : (
+                            <span className="text-amber-600 font-medium">In progress</span>
+                          )}
                         </TableCell>
                         <TableCell className="text-sm">
-                          {formatDuration(durationMs)}
+                          {hasEnd ? formatDuration(durationMs) : (
+                            <span className="text-amber-600">Recording...</span>
+                          )}
                         </TableCell>
                         <TableCell className="text-sm">
                           {formatBytes(rec.size_bytes)}
@@ -423,7 +428,7 @@ function RecordingDetailContent() {
               <div>
                 <dt className="text-muted-foreground">Mode</dt>
                 <dd className="font-medium mt-0.5">
-                  {camera.recording_mode ?? "N/A"}
+                  {camera.recording_mode ?? "Continuous"}
                 </dd>
               </div>
               <div>
@@ -431,7 +436,7 @@ function RecordingDetailContent() {
                 <dd className="font-medium mt-0.5">
                   {camera.retention_days != null
                     ? `${camera.retention_days} days`
-                    : "N/A"}
+                    : "30 days (default)"}
                 </dd>
               </div>
               <div>
@@ -439,13 +444,13 @@ function RecordingDetailContent() {
                 <dd className="font-medium mt-0.5">
                   {camera.storage_used != null
                     ? formatBytes(camera.storage_used)
-                    : "N/A"}
+                    : formatBytes(recordings.reduce((sum, r) => sum + (r.size_bytes ?? 0), 0))}
                 </dd>
               </div>
               <div>
                 <dt className="text-muted-foreground">Inherited From</dt>
                 <dd className="font-medium mt-0.5">
-                  {camera.inherited_from ?? "N/A"}
+                  {camera.inherited_from ?? "Default"}
                 </dd>
               </div>
             </dl>
