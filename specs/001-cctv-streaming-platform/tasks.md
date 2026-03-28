@@ -857,6 +857,67 @@ With 2–3 developers:
 
 ---
 
+## M12: Recording Revamp (US37)
+
+**Purpose**: Complete recording feature with browse UI (Card + Table), settings, detail page, scope-based config
+
+### Phase M12-1: Backend — Recording Config
+
+- [x] T300 [US37] Create `recording_configs` table schema in `apps/api-control/src/db/schema/recording-configs.ts` with scope-based settings (global/site/project/camera), unique index on (tenant_id, scope_type, scope_id)
+- [x] T301 [US37] Export `recordingConfigs` from `apps/api-control/src/db/schema/index.ts`
+- [x] T302 [US37] Create recording config service in `apps/api-control/src/services/recording-config.ts` with `resolveEffectiveConfig()` (4-level inheritance), `upsertConfig()`, `deleteConfig()`, `getStorageUsage()`
+- [x] T303 [US37] Add recording config CRUD routes: GET/PUT/DELETE `/recording-config/:scopeType/:scopeId` and GET `/recording-config/storage-usage`
+
+**Checkpoint**: Config CRUD works, inheritance resolves correctly
+
+### Phase M12-2: Backend — Recording Engine Fixes
+
+- [x] T304 [US37] Add `recording` feature to Starter and Pro plans in `apps/api-control/src/lib/plan-definitions.ts`
+- [x] T305 [US37] Add `requireFeature("recording")` + RBAC middleware to all recording routes
+- [x] T306 [US37] Add Zod validation for enable/disable params (retention_days 1-90, storage_type local/s3)
+- [x] T307 [US37] Create MediaMTX recording webhook handler `handleRecordingEvent()` in recordings service + POST `/internal/recording/event` endpoint
+- [x] T308 [US37] Implement real VOD signed session URLs with origin base URL in `createVodSession()`
+- [x] T309 [US37] Fix `purgeExpired()` to delete physical files with `fs.unlink()` + structured logging
+- [x] T310 [US37] Add pagination metadata (total, total_pages) to `listRecordings()` response
+
+**Checkpoint**: Recording engine fully functional — enable → MediaMTX records → webhook → DB → list → play → purge
+
+### Phase M12-3: Frontend — Browse Page
+
+- [x] T311 [P] [US37] Create `components/recordings/types.ts` shared Recording interface
+- [x] T312 [P] [US37] Create `components/recordings/view-toggle.tsx` (Grid/Table switch)
+- [x] T313 [P] [US37] Create `components/recordings/date-range-picker.tsx` (single component, not from/to)
+- [x] T314 [P] [US37] Create `components/recordings/recording-card.tsx` with thumbnail + YouTube-style muted hover preview
+- [x] T315 [P] [US37] Create `components/recordings/recording-table.tsx` with sortable columns + inline thumbnails
+- [x] T316 [P] [US37] Create `components/recordings/bulk-actions.tsx` (download per-file, delete with confirm)
+- [x] T317 [US37] Rewrite `app/(auth)/recordings/page.tsx` with Browse + Settings tabs, Card view (default), filters, pagination
+
+**Checkpoint**: Browse page renders Card/Table views, hover preview works, bulk actions work
+
+### Phase M12-4: Frontend — Detail Page
+
+- [x] T318 [P] [US37] Create `components/recordings/recording-timeline.tsx` (24h bar, green segments, click-to-seek, playhead)
+- [x] T319 [P] [US37] Create `components/recordings/recording-player.tsx` (HLS VOD wrapper with time display)
+- [x] T320 [US37] Create `app/(auth)/recordings/[cameraId]/page.tsx` with player, timeline, day nav, clips table, camera info
+
+**Checkpoint**: Click card → detail page → timeline seek → play clips → navigate days
+
+### Phase M12-5: Frontend — Settings Tab
+
+- [x] T321 [US37] Create `components/recordings/settings-tab.tsx` with global defaults form, scope overrides (site/project/camera tabs), storage usage dashboard
+
+**Checkpoint**: Save global settings → apply to cameras. Add site override → cameras in site inherit.
+
+### Phase M12-6: Spec & Documentation
+
+- [x] T322 [US37] Update spec.md: rewrite US37 (17 acceptance scenarios), add FR-095 to FR-101
+- [x] T323 [US37] Update plan.md: add M12 milestone, recording_configs data model, API endpoints, timeline
+- [x] T324 [US37] Update tasks.md: add M12 task breakdown
+
+**Checkpoint**: All speckit artifacts consistent with implementation
+
+---
+
 ## Notes
 
 - [P] tasks = different files, no dependencies

@@ -59,6 +59,7 @@ graph LR
     M8 --> M9
     M9 --> M10[M10: Notifications + Invites P2]
     M10 --> M11[M11: MediaMTX Config + Protocols P3]
+    M9 --> M12[M12: Recording Revamp P2]
 ```
 
 ### M7: Authentication & Login (P0) — US8
@@ -133,6 +134,70 @@ graph LR
 
 **Acceptance**: Change MediaMTX config → applied without interruption. WebRTC player < 1s latency. SRT camera ingest → HLS output.
 
+### M12: Recording Revamp (P2-Commercial) — US37
+
+**Scope**: Complete recording feature with browse UI, settings, detail page, scope-based config
+
+**Deliverables**:
+
+**Browse Page (tab: Browse)**:
+- Card view (default) with thumbnails from thumbnail worker
+- YouTube-style muted hover preview on cards
+- Table view with sortable columns and inline thumbnails
+- Single date-range picker (not separate from/to)
+- Bulk select with per-file download and delete
+- View toggle (Card/Table)
+
+**Recording Detail Page** (`/recordings/[cameraId]`):
+- HLS VOD player with signed session URLs
+- 24h timeline bar showing recording coverage (click to seek)
+- Day navigation (prev/next) with clips table
+- Camera recording info showing mode, retention, storage, inheritance source
+
+**Settings Tab (tab: Settings)**:
+- Global recording defaults (mode, retention, storage, quality, auto-purge)
+- Scope overrides (Site → Project → Camera) with inheritance
+- Storage usage dashboard (total used, top cameras)
+
+**Backend**:
+- `recording_configs` table for scope-based settings
+- Config CRUD API: GET/PUT/DELETE `/recording-config/:scopeType/:scopeId`
+- Storage usage API: GET `/recording-config/storage-usage`
+- MediaMTX webhook: POST `/internal/recording/event` (start/stop)
+- Feature gate: `requireFeature("recording")` on all recording routes
+- VOD signed session with origin base URL
+- Purge job deletes DB records + physical files
+
+**Recording Scope Inheritance**:
+```
+Global Default (Settings tab)
+ └── Site override
+      └── Project override
+           └── Camera override (closest scope wins)
+```
+
+**Recording Modes**: continuous | scheduled | event_based
+
+**Acceptance**: Enable recording per camera → MediaMTX records → webhook populates DB → browse in Card/Table view → click card → detail page with timeline + player → settings override per scope.
+
+**Components Created**:
+```
+components/recordings/
+├── recording-card.tsx        # Card + thumbnail + hover preview
+├── recording-table.tsx       # Sortable table view
+├── recording-timeline.tsx    # 24h timeline bar
+├── recording-player.tsx      # VOD player wrapper
+├── settings-tab.tsx          # Global config + overrides + storage
+├── date-range-picker.tsx     # Single date range component
+├── view-toggle.tsx           # Card/Table switch
+├── bulk-actions.tsx          # Download/delete bar
+└── types.ts                  # Shared Recording interface
+
+app/(auth)/recordings/
+├── page.tsx                  # Main page (Browse + Settings tabs)
+└── [cameraId]/page.tsx       # Detail page (per-camera)
+```
+
 ## New Data Model Additions
 
 ### notifications
@@ -162,6 +227,30 @@ graph LR
 | expires_at | timestamptz | 48h from creation |
 | accepted_at | timestamptz nullable | Null = pending |
 
+### recording_configs
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | uuid PK | |
+| tenant_id | uuid FK tenants | RLS |
+| scope_type | varchar(20) | global / site / project / camera |
+| scope_id | uuid nullable | Entity ID (null for global) |
+| mode | varchar(20) | continuous / scheduled / event_based |
+| schedule | jsonb | Time windows (for scheduled mode) |
+| retention_days | integer | 1-90 (limited by plan) |
+| auto_purge | boolean | Auto-delete expired recordings |
+| storage_type | varchar(20) | local / s3 |
+| storage_path | varchar(500) | Local path |
+| s3_config | jsonb | Bucket/region/keys |
+| format | varchar(10) | fmp4 / mkv |
+| resolution | varchar(10) | original / 720p / 480p |
+| max_segment_size_mb | integer | Max file size per segment |
+| enabled | boolean | Recording on/off |
+| created_at | timestamptz | |
+| updated_at | timestamptz | |
+
+**Unique index**: (tenant_id, scope_type, scope_id)
+
 ## New API Endpoints
 
 ### Auth
@@ -185,15 +274,25 @@ graph LR
 - `PATCH /api/v1/mediamtx/config` — Update config (hot-reload)
 - `GET /api/v1/mediamtx/paths` — List active paths
 
+### Recording Config
+- `GET /api/v1/recording-config/:scopeType/:scopeId?` — Get effective config
+- `PUT /api/v1/recording-config/:scopeType/:scopeId?` — Upsert config
+- `DELETE /api/v1/recording-config/:scopeType/:scopeId` — Remove override
+- `GET /api/v1/recording-config/storage-usage` — Storage summary
+
+### Recording Webhook (Internal)
+- `POST /internal/recording/event` — MediaMTX recording start/stop events
+
 ## Timeline
 
-| Milestone | Effort | Dependencies |
-|-----------|--------|-------------|
-| M7: Auth & Login | Small | None (P0, do first) |
-| M8: Project/Site UI | Small | M7 (needs auth) |
-| M9: Profile + Preview + Player | Medium | M7 + M8 |
-| M10: Notifications + Invitations | Medium | M7 |
-| M11: MediaMTX Config + Protocols | Medium | M8 |
+| Milestone | Effort | Dependencies | Status |
+|-----------|--------|-------------|--------|
+| M7: Auth & Login | Small | None (P0, do first) | Done |
+| M8: Project/Site UI | Small | M7 (needs auth) | Done |
+| M9: Profile + Preview + Player | Medium | M7 + M8 | Done |
+| M10: Notifications + Invitations | Medium | M7 | Done |
+| M11: MediaMTX Config + Protocols | Medium | M8 | Done |
+| M12: Recording Revamp | Large | M9 | Done |
 
 ## Testing Strategy (New Features)
 
