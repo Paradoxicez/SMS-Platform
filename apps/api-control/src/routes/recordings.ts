@@ -127,6 +127,18 @@ recordingsRouter.post(
 
 // ─── Recording Config Endpoints ─────────────────────────────────────────────
 
+// GET /recording-config/overrides — list all scope overrides for tenant
+recordingsRouter.get(
+  "/recording-config/overrides",
+  requireRole("admin", "operator"),
+  async (c) => {
+    const tenantId = c.get("tenantId");
+    const { listAllOverrides } = await import("../services/recording-config");
+    const overrides = await listAllOverrides(tenantId);
+    return c.json({ data: overrides });
+  },
+);
+
 // GET /recording-config/storage-usage — storage summary (must be before parameterized route)
 recordingsRouter.get(
   "/recording-config/storage-usage",

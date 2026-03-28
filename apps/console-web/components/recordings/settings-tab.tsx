@@ -139,10 +139,17 @@ export function RecordingSettingsTab() {
   const fetchOverrides = useCallback(async () => {
     setOverridesLoading(true)
     try {
-      const res = await apiClient.get<{ data: ScopeOverride[] }>(
+      const res = await apiClient.get<{ data: ScopeOverride[] | { items?: ScopeOverride[] } }>(
         "/recording-config/overrides",
       )
-      setOverrides(res.data)
+      const data = res.data
+      if (Array.isArray(data)) {
+        setOverrides(data)
+      } else if (data && typeof data === "object" && "items" in data && Array.isArray(data.items)) {
+        setOverrides(data.items)
+      } else {
+        setOverrides([])
+      }
     } catch {
       setOverrides([])
     } finally {

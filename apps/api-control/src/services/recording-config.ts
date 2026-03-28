@@ -126,6 +126,18 @@ export async function upsertConfig(
 }
 
 /**
+ * List all recording config overrides for a tenant.
+ */
+export async function listAllOverrides(tenantId: string) {
+  return withTenantContext(tenantId, async (tx) => {
+    return tx
+      .select()
+      .from(recordingConfigs)
+      .where(eq(recordingConfigs.tenantId, tenantId));
+  });
+}
+
+/**
  * Delete a scope override (falls back to parent scope).
  */
 export async function deleteConfig(
