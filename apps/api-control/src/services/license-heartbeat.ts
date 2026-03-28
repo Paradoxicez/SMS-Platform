@@ -7,6 +7,7 @@ import { count, eq } from "drizzle-orm";
 import { db } from "../db/client";
 import { cameras } from "../db/schema";
 import { getCachedLicenseStatus } from "./license";
+import { recordHeartbeat } from "../routes/health";
 
 const HEARTBEAT_INTERVAL = 24 * 60 * 60 * 1000; // 24 hours
 const CACHE_TTL = 72 * 60 * 60 * 1000; // 72 hours
@@ -107,6 +108,8 @@ async function sendHeartbeat(url: string): Promise<void> {
         status: data.status,
       };
 
+      recordHeartbeat(true);
+
       if (data.status === "revoked") {
         console.warn(
           JSON.stringify({
@@ -128,6 +131,7 @@ async function sendHeartbeat(url: string): Promise<void> {
         );
       }
     } else {
+      recordHeartbeat(false);
       console.warn(
         JSON.stringify({
           level: "warn",
@@ -137,6 +141,7 @@ async function sendHeartbeat(url: string): Promise<void> {
       );
     }
   } catch (err) {
+    recordHeartbeat(false);
     console.warn(
       JSON.stringify({
         level: "warn",

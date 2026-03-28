@@ -95,7 +95,6 @@ export class CameraHealthStateMachine {
       );
     }
 
-    const previousState = currentState;
     this.states.set(cameraId, newState);
 
     return newState;

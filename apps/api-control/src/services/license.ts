@@ -20,6 +20,7 @@ import {
   type PlanLimits,
 } from "../lib/plan-definitions";
 import { logAuditEvent } from "./audit";
+import { recordLicenseActivation, setLicenseMetrics } from "../routes/health";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -62,6 +63,7 @@ export async function activateLicense(
   const decoded = decodeLicense(key);
 
   if (!decoded.valid) {
+    recordLicenseActivation(false);
     return {
       valid: false,
       status: "invalid",
@@ -74,6 +76,7 @@ export async function activateLicense(
   // 2. Check if expired beyond grace period (> 30 days past expiry)
   const status = getPayloadStatus(payload);
   if (status === "read_only") {
+    recordLicenseActivation(false);
     return {
       valid: false,
       status: "invalid",
@@ -116,6 +119,10 @@ export async function activateLicense(
   cachedPayload = payload;
   cachedStatus = buildStatus(payload, limits, features);
 
+  // 5b. Update Prometheus metrics
+  recordLicenseActivation(true);
+  setLicenseMetrics(cachedStatus.status, cachedStatus.daysRemaining ?? 0, payload.plan);
+
   // 6. Audit log
   await logAuditEvent({
     tenantId,
@@ -157,6 +164,7 @@ export async function getLicenseStatus(tenantId?: string): Promise<LicenseStatus
     });
     const features = resolveFeatures(cachedPayload.plan as PlanTier, cachedPayload.addons);
     cachedStatus = buildStatus(cachedPayload, limits, features);
+    setLicenseMetrics(cachedStatus.status, cachedStatus.daysRemaining ?? 0, cachedPayload.plan);
     return cachedStatus;
   }
 

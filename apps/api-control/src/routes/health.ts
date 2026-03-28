@@ -11,6 +11,10 @@ const metrics = {
   requestDurationSum: 0,
   requestDurationBuckets: new Map<string, number>(),
   activeSessions: 0,
+  licenseActivations: 0,
+  licenseActivationErrors: 0,
+  heartbeatSuccesses: 0,
+  heartbeatFailures: 0,
 };
 
 const BUCKETS = [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10];
@@ -35,6 +39,33 @@ export function recordRequestMetrics(durationSec: number): void {
 
 export function setActiveSessions(count: number): void {
   metrics.activeSessions = count;
+}
+
+export function recordLicenseActivation(success: boolean): void {
+  if (success) {
+    metrics.licenseActivations++;
+  } else {
+    metrics.licenseActivationErrors++;
+  }
+}
+
+export function recordHeartbeat(success: boolean): void {
+  if (success) {
+    metrics.heartbeatSuccesses++;
+  } else {
+    metrics.heartbeatFailures++;
+  }
+}
+
+// License status for gauge — set externally by license service
+let licenseStatusGauge = "none";
+let licenseDaysRemaining = 0;
+let licensePlan = "none";
+
+export function setLicenseMetrics(status: string, daysRemaining: number, plan: string): void {
+  licenseStatusGauge = status;
+  licenseDaysRemaining = daysRemaining;
+  licensePlan = plan;
 }
 
 // T115: GET /health — simple liveness check
@@ -114,7 +145,26 @@ healthRouter.get("/metrics", (c) => {
   // Active sessions gauge
   output += "# HELP active_sessions Current number of active playback sessions\n";
   output += "# TYPE active_sessions gauge\n";
-  output += `active_sessions ${metrics.activeSessions}\n`;
+  output += `active_sessions ${metrics.activeSessions}\n\n`;
+
+  // License metrics
+  output += "# HELP license_activations_total Total license activation attempts\n";
+  output += "# TYPE license_activations_total counter\n";
+  output += `license_activations_total{result="success"} ${metrics.licenseActivations}\n`;
+  output += `license_activations_total{result="error"} ${metrics.licenseActivationErrors}\n\n`;
+
+  output += "# HELP license_heartbeat_total Total heartbeat requests\n";
+  output += "# TYPE license_heartbeat_total counter\n";
+  output += `license_heartbeat_total{result="success"} ${metrics.heartbeatSuccesses}\n`;
+  output += `license_heartbeat_total{result="failure"} ${metrics.heartbeatFailures}\n\n`;
+
+  output += "# HELP license_status Current license status (1=active, 0=other)\n";
+  output += "# TYPE license_status gauge\n";
+  output += `license_status{status="${licenseStatusGauge}",plan="${licensePlan}"} ${licenseStatusGauge === "active" ? 1 : 0}\n\n`;
+
+  output += "# HELP license_days_remaining Days until license expiry\n";
+  output += "# TYPE license_days_remaining gauge\n";
+  output += `license_days_remaining ${licenseDaysRemaining}\n`;
 
   return new Response(output, {
     status: 200,

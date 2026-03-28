@@ -36,6 +36,7 @@
     "@repo/types": "workspace:*"
   },
   "devDependencies": {
+    "@repo/config": "workspace:*",
     "typescript": "^5.5.0"
   },
   "keywords": [

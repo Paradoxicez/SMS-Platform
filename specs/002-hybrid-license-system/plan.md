@@ -10,8 +10,8 @@ Replace the existing HMAC-SHA256 license system with a production-grade Ed25519-
 ## Technical Context
 
 **Language/Version**: TypeScript 5.x on Node.js 22.x LTS
-**Primary Dependencies**: Hono 4.x (API), Next.js 15.x (Console), Drizzle ORM 0.38.x, @noble/ed25519 (signing)
-**Storage**: PostgreSQL 17.x (license persistence), Redis 7.x (cached license status)
+**Primary Dependencies**: Hono 4.x (API), Next.js 15.x (Console), Drizzle ORM 0.38.x, @noble/curves (Ed25519 signing)
+**Storage**: PostgreSQL 17.x (license persistence), in-memory cache (single-process on-prem; no Redis needed)
 **Testing**: Vitest (unit), Playwright (E2E)
 **Target Platform**: Linux server (Docker), macOS (dev)
 **Project Type**: Monorepo (pnpm + Turborepo) — web-service + CLI tool
@@ -25,7 +25,7 @@ Replace the existing HMAC-SHA256 license system with a production-grade Ed25519-
 
 | Principle | Status | Notes |
 |---|---|---|
-| I. Open-Source First | PASS | @noble/ed25519 is OSS (MIT). No proprietary dependencies. |
+| I. Open-Source First | PASS | @noble/curves is OSS (MIT). No proprietary dependencies. |
 | II. Strict Separation (CP/DP) | PASS | License is Control Plane only. Data Plane streams continue even if license expires (per spec FR-009). |
 | III. Default Protocol — HLS First | N/A | License system does not affect protocol selection. |
 | IV. Security by Default | PASS | Ed25519 asymmetric signing prevents key forgery. Tampered keys rejected by signature verification. |
@@ -64,6 +64,7 @@ apps/console-web/app/(auth)/settings/license/      # Enhanced License UI
 apps/console-web/components/license-banner.tsx     # Expiry warning banner
 
 # Files added (new)
+scripts/generate-keypair.ts                        # Ed25519 key pair generator (one-time setup)
 scripts/generate-license.ts                        # CLI tool for vendor
 apps/api-control/src/services/license-heartbeat.ts # Optional heartbeat service
 apps/api-control/src/lib/plan-definitions.ts       # Plan tier → features mapping
@@ -91,8 +92,7 @@ apps/api-control/src/lib/plan-definitions.ts       # Plan tier → features mapp
 
 **Goal**: Enforce plan features and hard limits across the platform
 
-1. Create plan-definitions mapping (4 tiers × features + limits)
-2. Refactor `feature-gate.ts` to resolve features from license (plan + addons)
+1. Refactor `feature-gate.ts` to resolve features from plan-definitions (created in Phase 1) + license addons
 3. Add `requireFeature("feature_name")` middleware
 4. Apply feature gates to all gatable routes (recording, webhooks, embed, API, etc.)
 5. Add frontend upgrade prompts (show feature description + contact vendor)
@@ -128,7 +128,7 @@ apps/api-control/src/lib/plan-definitions.ts       # Plan tier → features mapp
 
 | Decision | Choice | Rationale |
 |---|---|---|
-| Signing algorithm | Ed25519 via @noble/ed25519 | OSS, fast, small signatures, asymmetric (safe to embed public key) |
+| Signing algorithm | Ed25519 via @noble/curves | OSS (MIT), fast, small signatures, asymmetric (safe to embed public key), pure JS, no native deps |
 | Key storage | Private key: vendor-only file. Public key: embedded in app code | Standard practice for license systems |
 | Plan definitions | In application code (not DB) | Prevents customers from modifying plan features via DB |
 | License persistence | PostgreSQL `licenses` table | Survives restarts, queryable, auditable |

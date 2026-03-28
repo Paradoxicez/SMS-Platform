@@ -81,7 +81,7 @@ program
   .option("--api-keys <n>", "Max API keys (default: plan default)", parseInt)
   .option("--viewer-hours <n>", "Viewer hours quota (default: plan default)", parseInt)
   .option("--retention-days <n>", "Recording retention days (default: plan default)", parseInt)
-  .option("--addons <list>", "Comma-separated addon names", "")
+  .option("--addons <names...>", "Addon names (space-separated or comma-separated, e.g. --addons recording ai)")
   .option("--expires <date>", "Expiry date (YYYY-MM-DD, default: +1 year)")
   .option("--private-key <path>", "Path to Ed25519 private key", "keys/license.private.key")
   .action((opts) => {
@@ -91,10 +91,12 @@ program
       process.exit(1);
     }
 
-    // Validate addons
-    const addons = opts.addons
-      ? opts.addons.split(",").map((a: string) => a.trim()).filter(Boolean)
-      : [];
+    // Validate addons — supports both "--addons recording ai" and "--addons recording,ai"
+    const rawAddons: string[] = opts.addons ?? [];
+    const addons = rawAddons
+      .flatMap((a: string) => a.split(","))
+      .map((a: string) => a.trim())
+      .filter(Boolean);
 
     for (const addon of addons) {
       if (!VALID_ADDONS.includes(addon)) {

@@ -318,8 +318,10 @@ export class IngestOrchestrator {
     // Resolution scaling (downscale only, preserve aspect ratio)
     if (needsResolutionScale) {
       const scale = RESOLUTION_MAP[profile.output_resolution];
-      // -2 ensures divisible by 2 for encoders; min() prevents upscaling
-      args.push("-vf", `scale='min(${scale.split(":")[0]},iw)':min'(${scale.split(":")[1]},ih)':force_original_aspect_ratio=decrease`);
+      if (scale) {
+        // -2 ensures divisible by 2 for encoders; min() prevents upscaling
+        args.push("-vf", `scale='min(${scale.split(":")[0]},iw)':min'(${scale.split(":")[1]},ih)':force_original_aspect_ratio=decrease`);
+      }
     }
 
     // Framerate cap

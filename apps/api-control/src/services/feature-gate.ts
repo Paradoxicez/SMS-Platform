@@ -199,6 +199,24 @@ export async function checkFeatureFlag(
   return limits.features[feature] === true;
 }
 
+/**
+ * Check viewer hours quota. Returns allowed=true if usage is within quota.
+ * NOTE: Viewer hours tracking is not yet implemented — this always returns allowed=true.
+ * TODO: Integrate with usage tracking service when available.
+ */
+export async function checkViewerHoursQuota(
+  tenantId: string,
+): Promise<{ allowed: boolean; currentHours: number; quotaHours: number }> {
+  const limits = await getPlanLimits(tenantId);
+  // TODO: Query actual viewer hours from usage tracking
+  const currentHours = 0;
+  return {
+    allowed: currentHours < limits.viewerHoursQuota,
+    currentHours,
+    quotaHours: limits.viewerHoursQuota,
+  };
+}
+
 export async function getUsageSummary(
   tenantId: string,
 ): Promise<UsageSummary> {

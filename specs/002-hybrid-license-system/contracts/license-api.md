@@ -65,7 +65,7 @@ Activate a license key for the current tenant.
 
 Get current license status.
 
-**Auth**: Required (any role) or no auth for `is_on_prem` check
+**Auth**: Required (any authenticated user)
 
 **Response 200**:
 ```json
@@ -99,7 +99,7 @@ pnpm license:generate \
   --cameras 100 \
   --projects 10 \
   --users 20 \
-  --addons recording,ai \
+  --addons recording ai \
   --expires 2027-03-26
 
 # Output:
@@ -123,7 +123,7 @@ pnpm license:generate \
 | `--cameras` | No | Plan default | Max cameras |
 | `--projects` | No | Plan default | Max projects |
 | `--users` | No | Plan default | Max users |
-| `--addons` | No | (none) | Comma-separated addon names |
+| `--addons` | No | (none) | Addon names (space-separated or comma-separated) |
 | `--expires` | No | +1 year | Expiry date (YYYY-MM-DD) |
 | `--private-key` | No | `keys/license.private.key` | Path to Ed25519 private key |
 

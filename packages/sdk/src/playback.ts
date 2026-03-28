@@ -1,5 +1,4 @@
 import type {
-  PlaybackSession,
   CreatePlaybackSessionInput,
   BatchCreatePlaybackSessionInput,
 } from "@repo/types";

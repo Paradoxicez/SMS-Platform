@@ -43,7 +43,7 @@ A **vendor operator** uses a command-line tool to generate a signed license key 
 
 **Acceptance Scenarios**:
 
-1. **Given** a vendor operator with access to the CLI tool, **When** they run the generate command with tenant name, plan "pro", 100 cameras, addon "recording", and expiry date 2027-03-26, **Then** a base64-encoded license key is output containing all specified parameters with a valid Ed25519 signature.
+1. **Given** a vendor operator with access to the CLI tool, **When** they run the generate command with tenant name, plan "pro", 100 cameras, addon "recording", and expiry date 2027-03-26, **Then** a base64url-encoded license key is output containing all specified parameters with a valid Ed25519 signature.
 2. **Given** a generated license key, **When** any field in the key is modified after generation, **Then** signature verification fails and the key is rejected as invalid.
 3. **Given** the CLI tool, **When** an invalid plan name or negative camera count is provided, **Then** the tool shows a clear validation error and does not generate a key.
 4. **Given** the CLI tool, **When** no expiry date is provided, **Then** the tool defaults to 1 year from the current date.
@@ -165,9 +165,9 @@ For on-premise deployments with internet access, the platform **periodically con
 ### Functional Requirements
 
 - **FR-001**: System MUST validate license keys using Ed25519 asymmetric signature verification (public key embedded in application, private key held by vendor only).
-- **FR-002**: System MUST decode license keys from base64-encoded strings containing: license ID, tenant name, plan name, hard limits, addons list, issued date, expiry date, and Ed25519 signature.
+- **FR-002**: System MUST decode license keys from base64url-encoded strings containing: license ID, tenant name, plan name, hard limits, addons list, issued date, expiry date, and Ed25519 signature.
 - **FR-003**: System MUST persist activated license keys in the database and load them automatically on startup.
-- **FR-004**: System MUST enforce hard limits (cameras, users, projects, sites, API keys, viewer hours, retention days) based on the active license.
+- **FR-004**: System MUST enforce hard limits (cameras, users, projects, sites, API keys) based on the active license. Viewer hours and retention days limits are stored and exposed via API but enforcement requires usage tracking integration (future scope).
 - **FR-005**: System MUST resolve effective features by combining the plan's base feature set with any addons specified in the license key.
 - **FR-006**: System MUST provide a CLI tool that generates signed license keys given: tenant name, plan, limits, addons, and expiry date.
 - **FR-007**: System MUST show a warning banner when a license is within 30 days of expiry.
@@ -180,10 +180,12 @@ For on-premise deployments with internet access, the platform **periodically con
 - **FR-014**: System MUST display the current license status (plan, limits, features, expiry, days remaining) on the License settings page.
 - **FR-015**: System MUST show a clear upgrade prompt when a user attempts to use a feature not included in their plan.
 - **FR-016**: The CLI tool MUST validate inputs before generating a key.
+- **FR-017**: System MUST provide a CLI tool to generate an Ed25519 key pair (private key for vendor, public key for application) as a one-time setup step before any license key can be generated.
+- **FR-018**: The generated private key MUST be excluded from version control (`.gitignore`) and stored only on the vendor's secure machine.
 
 ### Key Entities
 
-- **License Key**: A base64-encoded, Ed25519-signed payload containing plan, limits, addons, and expiry. Stored in the database after activation.
+- **License Key**: A base64url-encoded, Ed25519-signed payload containing plan, limits, addons, and expiry. Stored in the database after activation.
 - **Plan Tier**: A named tier (free, starter, pro, enterprise) that maps to a base set of features and default limits. Definitions maintained in application code.
 - **Addon**: A purchasable feature that extends a plan's base features. Encoded in the license key.
 - **Feature Gate**: A runtime check that determines whether a user action is allowed based on the effective feature set and hard limits.
