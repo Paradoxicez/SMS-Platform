@@ -1,0 +1,26 @@
+{
+  "name": "sms-app",
+  "private": true,
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "format": "prettier --write \"**/*.{ts,tsx,md,json}\"",
+    "license:generate": "tsx scripts/generate-license.ts",
+    "license:keygen": "tsx scripts/generate-keypair.ts"
+  },
+  "devDependencies": {
+    "playwright": "^1.58.2",
+    "prettier": "^3.0.0",
+    "tsx": "^4.0.0",
+    "turbo": "^2.0.0"
+  },
+  "packageManager": "pnpm@9.0.0",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "dependencies": {
+    "commander": "^14.0.3"
+  }
+}

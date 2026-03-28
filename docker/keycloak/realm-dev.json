@@ -1,0 +1,93 @@
+{
+  "realm": "sms-platform",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "editUsernameAllowed": false,
+  "bruteForceProtected": true,
+  "roles": {
+    "realm": [
+      { "name": "admin", "description": "Full tenant administration" },
+      { "name": "operator", "description": "Camera and site management" },
+      { "name": "developer", "description": "API access and SDK usage" },
+      { "name": "viewer", "description": "Read-only stream access" }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "console-web",
+      "name": "Console Web App",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "console-web-dev-secret",
+      "directAccessGrantsEnabled": true,
+      "redirectUris": ["http://localhost:3000/*"],
+      "webOrigins": ["http://localhost:3000"],
+      "protocol": "openid-connect",
+      "standardFlowEnabled": true
+    },
+    {
+      "clientId": "api-control",
+      "name": "API Control Service",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "api-control-dev-secret",
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "protocol": "openid-connect"
+    }
+  ],
+  "users": [
+    {
+      "username": "demo@example.com",
+      "email": "demo@example.com",
+      "firstName": "Demo",
+      "lastName": "Admin",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "demo123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["admin"]
+    },
+    {
+      "username": "operator@example.com",
+      "email": "operator@example.com",
+      "firstName": "Demo",
+      "lastName": "Operator",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "demo123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["operator"]
+    },
+    {
+      "username": "developer@example.com",
+      "email": "developer@example.com",
+      "firstName": "Demo",
+      "lastName": "Developer",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "demo123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["developer"]
+    }
+  ]
+}

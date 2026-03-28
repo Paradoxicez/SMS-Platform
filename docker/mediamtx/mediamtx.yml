@@ -1,0 +1,50 @@
+logLevel: info
+logDestinations: [stdout]
+readTimeout: 10s
+writeTimeout: 10s
+api: yes
+apiAddress: :9997
+metrics: yes
+metricsAddress: :9998
+rtsp: yes
+rtspAddress: :8554
+rtspEncryption: "no"
+rtspAuthMethods: [basic]
+hls: yes
+hlsAddress: :8888
+hlsVariant: fmp4
+hlsSegmentDuration: 2s
+hlsPartDuration: 200ms
+hlsSegmentCount: 3
+hlsAlwaysRemux: no
+webrtc: yes
+webrtcAddress: :8889
+rtmp: no
+srt: no
+authMethod: internal
+authInternalUsers:
+  - user: admin
+    pass: admin
+    permissions:
+      - action: publish
+        path: ""
+      - action: read
+        path: ""
+      - action: playback
+        path: ""
+      - action: api
+  - user: publisher
+    pass: publisher_secret
+    permissions:
+      - action: publish
+        path: ""
+  - user: any
+    pass: ""
+    permissions:
+      - action: read
+        path: ""
+      - action: playback
+        path: ""
+paths:
+  all:
+    source: publisher

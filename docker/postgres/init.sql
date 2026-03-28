@@ -1,0 +1,19 @@
+-- Enable required extensions
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- Create application role for RLS
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'sms_app') THEN
+    CREATE ROLE sms_app LOGIN PASSWORD 'sms_app_password';
+  END IF;
+END
+$$;
+
+-- Grant permissions
+GRANT ALL PRIVILEGES ON DATABASE sms_app TO sms_app;
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO sms_app;
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO sms_app;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO sms_app;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO sms_app;
