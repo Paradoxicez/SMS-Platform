@@ -77,7 +77,7 @@ function formatBytes(bytes: number): string {
   const units = ["B", "KB", "MB", "GB", "TB"]
   const i = Math.floor(Math.log(bytes) / Math.log(1024))
   const value = bytes / Math.pow(1024, i)
-  return `${value.toFixed(1)} ${units[i]}`
+  return `${value.toFixed(1)} ${units[i] ?? "B"}`
 }
 
 const DEFAULT_GLOBAL_CONFIG: GlobalConfig = {

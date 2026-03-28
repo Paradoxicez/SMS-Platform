@@ -25,7 +25,7 @@ export function RecordingTimeline({
 
   // Get the start of the day from the first recording or today
   const dayStart = recordings.length > 0
-    ? new Date(new Date(recordings[0].startTime).toDateString())
+    ? new Date(new Date(recordings[0]!.startTime).toDateString())
     : new Date(new Date().toDateString());
 
   const getPercent = useCallback(

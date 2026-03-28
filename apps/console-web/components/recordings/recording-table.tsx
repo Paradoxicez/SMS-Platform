@@ -41,7 +41,7 @@ function formatBytes(bytes: number): string {
   const k = 1024
   const sizes = ["B", "KB", "MB", "GB"]
   const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`
+  return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i] ?? "B"}`
 }
 
 export function RecordingTable({
@@ -75,7 +75,7 @@ export function RecordingTable({
   const someSelected = recordings.some((r) => selectedIds.has(r.id)) && !allSelected
 
   function handleRowClick(rec: Recording) {
-    const dateStr = rec.startTime.split("T")[0]
+    const dateStr = rec.startTime.split("T")[0]!
     router.push(`/recordings/${rec.cameraId}?date=${dateStr}`)
   }
 

@@ -68,7 +68,7 @@ function formatBytes(bytes: number): string {
   const k = 1024;
   const sizes = ["B", "KB", "MB", "GB", "TB"];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`;
+  return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i] ?? "B"}`;
 }
 
 function toDateStr(date: Date): string {
@@ -79,8 +79,8 @@ function toDateStr(date: Date): string {
 }
 
 function parseDate(dateStr: string): Date {
-  const [y, m, d] = dateStr.split("-").map(Number);
-  return new Date(y, m - 1, d);
+  const parts = dateStr.split("-").map(Number);
+  return new Date(parts[0] ?? 2026, (parts[1] ?? 1) - 1, parts[2] ?? 1);
 }
 
 function formatDisplayDate(dateStr: string): string {
@@ -230,7 +230,7 @@ function RecordingDetailContent() {
   function handlePlayerTimeUpdate(currentSec: number) {
     // If we have a playing recording, compute the absolute time from the first recording's start
     if (recordings.length > 0 && playbackUrl) {
-      const firstStart = new Date(recordings[0].startTime);
+      const firstStart = new Date(recordings[0]!.startTime);
       setCurrentPlayTime(new Date(firstStart.getTime() + currentSec * 1000));
     }
   }

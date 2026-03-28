@@ -32,8 +32,8 @@ function getDefaultDateRange(): DateRange {
   const from = new Date()
   from.setDate(from.getDate() - 7)
   return {
-    from: from.toISOString().split("T")[0],
-    to: to.toISOString().split("T")[0],
+    from: from.toISOString().split("T")[0]!,
+    to: to.toISOString().split("T")[0]!,
   }
 }
 
