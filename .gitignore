@@ -1,0 +1,43 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+.next/
+build/
+*.tsbuildinfo
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+coverage/
+
+# Turbo
+.turbo/
+
+# Docker volumes
+postgres_data/
+redis_data/
+thumbnails_data/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Secrets
+*.key
+*.pem
+*.crt

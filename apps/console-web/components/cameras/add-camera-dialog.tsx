@@ -1,0 +1,340 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { toast } from "sonner";
+import { apiClient, type StreamProfile } from "../../lib/api-client";
+import type { Project, Site } from "@repo/types";
+
+interface AddCameraDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSuccess: () => void;
+  siteId?: string;
+}
+
+export function AddCameraDialog({
+  open,
+  onOpenChange,
+  onSuccess,
+  siteId: defaultSiteId,
+}: AddCameraDialogProps) {
+  const [submitting, setSubmitting] = useState(false);
+
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [sitesForProject, setSitesForProject] = useState<Site[]>([]);
+  const [selectedProjectId, setSelectedProjectId] = useState("");
+
+  const [streamUrl, setStreamUrl] = useState("");
+  const [name, setName] = useState("");
+  const [latitude, setLatitude] = useState("");
+  const [longitude, setLongitude] = useState("");
+  const [tags, setTags] = useState("");
+  const [siteId, setSiteId] = useState(defaultSiteId ?? "");
+  const [srtMode, setSrtMode] = useState<string>("caller");
+  const [profiles, setProfiles] = useState<StreamProfile[]>([]);
+  const [selectedProfileId, setSelectedProfileId] = useState("");
+
+  const isSrt = streamUrl.startsWith("srt://");
+
+  // Fetch projects on mount
+  useEffect(() => {
+    if (defaultSiteId) return; // Skip if site is pre-selected
+    apiClient.listProjects(1, 100).then((res) => {
+      setProjects(res.data ?? []);
+    }).catch(() => {});
+  }, [defaultSiteId]);
+
+  // Fetch profiles on mount
+  useEffect(() => {
+    apiClient.listProfiles().then((res) => {
+      setProfiles(res.data ?? []);
+    }).catch(() => {});
+  }, []);
+
+  // Auto-select profile when siteId changes
+  useEffect(() => {
+    if (!siteId) return;
+    apiClient.getSite(siteId).then((res) => {
+      if (res.data.default_profile_id) {
+        setSelectedProfileId(res.data.default_profile_id);
+      }
+    }).catch(() => {});
+  }, [siteId]);
+
+  // Fetch sites when project changes
+  useEffect(() => {
+    if (!selectedProjectId || defaultSiteId) return;
+    setSiteId("");
+    apiClient.listSites(selectedProjectId, 1, 100).then((res) => {
+      setSitesForProject(res.data ?? []);
+    }).catch(() => {
+      setSitesForProject([]);
+    });
+  }, [selectedProjectId, defaultSiteId]);
+
+  function resetForm() {
+    setStreamUrl("");
+    setName("");
+    setLatitude("");
+    setLongitude("");
+    setTags("");
+    setSelectedProfileId("");
+    if (!defaultSiteId) {
+      setSiteId("");
+      setSelectedProjectId("");
+      setSitesForProject([]);
+    }
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+
+    if (!streamUrl || !name || !siteId) {
+      toast.error("Validation Error", {
+        description: "Stream URL, camera name, and site are required.",
+      });
+      return;
+    }
+
+    if (!streamUrl.startsWith("rtsp://") && !streamUrl.startsWith("srt://")) {
+      toast.error("Validation Error", {
+        description: "Stream URL must start with rtsp:// or srt://",
+      });
+      return;
+    }
+
+    setSubmitting(true);
+
+    try {
+      const tagList = tags
+        .split(",")
+        .map((t) => t.trim())
+        .filter(Boolean);
+
+      await apiClient.createCamera(siteId, {
+        name,
+        rtsp_url: streamUrl,
+        lat: latitude ? parseFloat(latitude) : undefined,
+        lng: longitude ? parseFloat(longitude) : undefined,
+        tags: tagList.length > 0 ? tagList : undefined,
+        profile_id: selectedProfileId || undefined,
+      });
+
+      toast.success("Camera Added", {
+        description: `Camera "${name}" has been onboarded and stream validation is in progress.`,
+      });
+
+      resetForm();
+      onSuccess();
+    } catch (err) {
+      toast.error("Error", {
+        description:
+          err instanceof Error ? err.message : "Failed to add camera.",
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[500px]">
+        <DialogHeader>
+          <DialogTitle>Add Camera</DialogTitle>
+          <DialogDescription>
+            Onboard a new camera by providing its stream connection details. The
+            platform supports RTSP and SRT protocols and will validate the
+            connection automatically.
+          </DialogDescription>
+        </DialogHeader>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {!defaultSiteId && (
+            <>
+              <div className="space-y-2">
+                <label className="text-sm font-medium" htmlFor="projectSelect">
+                  Project *
+                </label>
+                <Select
+                  value={selectedProjectId}
+                  onValueChange={setSelectedProjectId}
+                >
+                  <SelectTrigger id="projectSelect">
+                    <SelectValue placeholder="Select a project" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {projects.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium" htmlFor="siteSelect">
+                  Site *
+                </label>
+                <Select
+                  value={siteId}
+                  onValueChange={setSiteId}
+                  disabled={!selectedProjectId}
+                >
+                  <SelectTrigger id="siteSelect">
+                    <SelectValue placeholder={selectedProjectId ? "Select a site" : "Select a project first"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {sitesForProject.map((s) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </>
+          )}
+
+          <div className="space-y-2">
+            <Label>Stream Profile</Label>
+            <Select value={selectedProfileId} onValueChange={setSelectedProfileId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Default" />
+              </SelectTrigger>
+              <SelectContent>
+                {profiles.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name} {p.is_default && "(Default)"}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Output configuration for this camera. Leave empty to use the site or tenant default.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium" htmlFor="name">
+              Camera Name *
+            </label>
+            <Input
+              id="name"
+              placeholder="e.g., Lobby Entrance Camera"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium" htmlFor="streamUrl">
+              Stream URL *
+            </label>
+            <Input
+              id="streamUrl"
+              placeholder="rtsp://camera-ip:554/stream"
+              value={streamUrl}
+              onChange={(e) => setStreamUrl(e.target.value)}
+              required
+            />
+            <p className="text-xs text-muted-foreground">
+              Supports rtsp:// and srt:// protocols
+            </p>
+          </div>
+
+          {isSrt && (
+            <div className="space-y-2">
+              <label className="text-sm font-medium">SRT Mode</label>
+              <Select value={srtMode} onValueChange={setSrtMode}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="caller">Caller</SelectItem>
+                  <SelectItem value="listener">Listener</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Caller: the server connects to the camera. Listener: the camera connects to the server.
+              </p>
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium" htmlFor="latitude">
+                Latitude
+              </label>
+              <Input
+                id="latitude"
+                type="number"
+                step="any"
+                placeholder="e.g., 13.7563"
+                value={latitude}
+                onChange={(e) => setLatitude(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium" htmlFor="longitude">
+                Longitude
+              </label>
+              <Input
+                id="longitude"
+                type="number"
+                step="any"
+                placeholder="e.g., 100.5018"
+                value={longitude}
+                onChange={(e) => setLongitude(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium" htmlFor="tags">
+              Tags
+            </label>
+            <Input
+              id="tags"
+              placeholder="indoor, lobby, hd (comma-separated)"
+              value={tags}
+              onChange={(e) => setTags(e.target.value)}
+            />
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" disabled={submitting}>
+              {submitting ? "Adding..." : "Add Camera"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
