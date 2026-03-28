@@ -127,6 +127,17 @@ recordingsRouter.post(
 
 // ─── Recording Config Endpoints ─────────────────────────────────────────────
 
+// GET /recording-config/storage-usage — storage summary (must be before parameterized route)
+recordingsRouter.get(
+  "/recording-config/storage-usage",
+  requireRole("admin", "operator"),
+  async (c) => {
+    const tenantId = c.get("tenantId");
+    const usage = await getStorageUsage(tenantId);
+    return c.json({ data: usage });
+  },
+);
+
 // GET /recording-config/:scopeType/:scopeId? — get effective config
 recordingsRouter.get(
   "/recording-config/:scopeType/:scopeId?",
@@ -167,17 +178,6 @@ recordingsRouter.delete(
 
     const deleted = await deleteConfig(tenantId, scopeType, scopeId);
     return c.json({ data: { deleted } });
-  },
-);
-
-// GET /recording-config/storage-usage — storage summary
-recordingsRouter.get(
-  "/recording-config/storage-usage",
-  requireRole("admin", "operator"),
-  async (c) => {
-    const tenantId = c.get("tenantId");
-    const usage = await getStorageUsage(tenantId);
-    return c.json({ data: usage });
   },
 );
 

@@ -14,11 +14,20 @@ vi.mock("../../services/recordings", () => ({
   createVodSession: (...args: unknown[]) => mockCreateVodSession(...args),
 }));
 
+const mockResolveConfig = vi.fn().mockResolvedValue({ mode: "continuous", enabled: true, inheritedFrom: "default" });
+const mockUpsertConfig = vi.fn().mockResolvedValue({ id: "config-1", mode: "continuous" });
+const mockDeleteConfig = vi.fn().mockResolvedValue(true);
+const mockGetStorageUsage = vi.fn().mockResolvedValue({
+  total_bytes: 5000000,
+  total_count: 10,
+  top_cameras: [{ camera_id: "cam-1", total_bytes: 3000000, recording_count: 7 }],
+});
+
 vi.mock("../../services/recording-config", () => ({
-  resolveEffectiveConfig: vi.fn().mockResolvedValue({ mode: "continuous", enabled: true, inheritedFrom: "global" }),
-  upsertConfig: vi.fn().mockResolvedValue({ id: "config-1" }),
-  deleteConfig: vi.fn().mockResolvedValue(true),
-  getStorageUsage: vi.fn().mockResolvedValue({ total_bytes: 1000, total_count: 5, top_cameras: [] }),
+  resolveEffectiveConfig: (...args: unknown[]) => mockResolveConfig(...args),
+  upsertConfig: (...args: unknown[]) => mockUpsertConfig(...args),
+  deleteConfig: (...args: unknown[]) => mockDeleteConfig(...args),
+  getStorageUsage: (...args: unknown[]) => mockGetStorageUsage(...args),
 }));
 
 // Mock feature gate to always allow
@@ -223,6 +232,82 @@ describe("recording routes", () => {
       });
 
       expect(res.status).toBe(404);
+    });
+  });
+
+  describe("Recording Config API", () => {
+    it("GET /recording-config/global should return effective config", async () => {
+      const res = await app.request("/recording-config/global");
+      expect(res.status).toBe(200);
+      const body = await res.json() as { data: { mode: string; inheritedFrom: string } };
+      expect(body.data.mode).toBe("continuous");
+      expect(body.data.inheritedFrom).toBe("default");
+    });
+
+    it("PUT /recording-config/global should upsert global config", async () => {
+      const res = await app.request("/recording-config/global", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ retentionDays: 90, mode: "scheduled" }),
+      });
+      expect(res.status).toBe(200);
+      expect(mockUpsertConfig).toHaveBeenCalledWith(
+        "tenant-123",
+        "global",
+        undefined,
+        expect.objectContaining({ retentionDays: 90, mode: "scheduled" }),
+      );
+    });
+
+    it("PUT /recording-config/site/site-1 should upsert site override", async () => {
+      const res = await app.request("/recording-config/site/site-1", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ retentionDays: 60 }),
+      });
+      expect(res.status).toBe(200);
+      expect(mockUpsertConfig).toHaveBeenCalledWith(
+        "tenant-123",
+        "site",
+        "site-1",
+        expect.objectContaining({ retentionDays: 60 }),
+      );
+    });
+
+    it("PUT /recording-config/camera/cam-1 should upsert camera override", async () => {
+      const res = await app.request("/recording-config/camera/cam-1", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "event_based", retentionDays: 7 }),
+      });
+      expect(res.status).toBe(200);
+      expect(mockUpsertConfig).toHaveBeenCalledWith(
+        "tenant-123",
+        "camera",
+        "cam-1",
+        expect.objectContaining({ mode: "event_based", retentionDays: 7 }),
+      );
+    });
+
+    it("DELETE /recording-config/camera/cam-1 should remove override", async () => {
+      const res = await app.request("/recording-config/camera/cam-1", {
+        method: "DELETE",
+      });
+      expect(res.status).toBe(200);
+      const body = await res.json() as { data: { deleted: boolean } };
+      expect(body.data.deleted).toBe(true);
+      expect(mockDeleteConfig).toHaveBeenCalledWith("tenant-123", "camera", "cam-1");
+    });
+
+    it("GET /recording-config/storage-usage should return usage summary", async () => {
+      const res = await app.request("/recording-config/storage-usage");
+      expect(res.status).toBe(200);
+      const body = await res.json() as {
+        data: { total_bytes: number; total_count: number; top_cameras: unknown[] };
+      };
+      expect(body.data.total_bytes).toBe(5000000);
+      expect(body.data.total_count).toBe(10);
+      expect(body.data.top_cameras).toHaveLength(1);
     });
   });
 });

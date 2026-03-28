@@ -10,8 +10,6 @@
  * Mocks DB but uses real recording logic.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { Hono } from "hono";
-import { ed25519 } from "@noble/curves/ed25519.js";
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
