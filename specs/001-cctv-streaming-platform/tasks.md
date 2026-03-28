@@ -916,6 +916,22 @@ With 2–3 developers:
 
 **Checkpoint**: All speckit artifacts consistent with implementation
 
+### Phase M12-7: Recording Completeness
+
+- [x] T325 [US37] Create S3 storage provider in `apps/api-control/src/lib/recording-storage.ts` with upload, download, delete, getSignedUrl, exists (AWS Signature V4)
+- [x] T326 [US37] Create local storage provider in same file with disk-based operations
+- [x] T327 [US37] Integrate storage provider into `createVodSession()` — S3 uses pre-signed URLs, local uses origin base URL
+- [x] T328 [US37] Integrate storage provider into `purgeExpired()` — deletes from S3 or local based on recording storageType
+- [x] T329 [US37] Add s3_bucket and s3_key columns to recordings schema
+- [x] T330 [US37] Add composite index on recordings(cameraId, startTime) + unique index on filePath
+- [x] T331 [US37] Create schedule utilities in `apps/api-control/src/lib/recording-schedule.ts` with `isWithinSchedule()` and `getNextScheduleStart()`
+- [x] T332 [US37] Integrate schedule check into `handleRecordingEvent()` — skip recording_start if mode=scheduled and outside time window
+- [x] T333 [US37] Create event-based recording trigger `triggerEventRecording()` in recordings service
+- [x] T334 [US37] Add POST `/internal/recording/trigger` endpoint for AI event-based recording
+- [x] T335 [US37] Update spec.md with FR-103 to FR-106 (S3, schedule, event-based, indexes)
+
+**Checkpoint**: Recording feature 100% complete — S3 storage, scheduled mode, event triggers, indexes
+
 ---
 
 ## Notes

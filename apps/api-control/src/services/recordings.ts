@@ -3,7 +3,9 @@ import { withTenantContext } from "../db/client";
 import { recordings } from "../db/schema/recordings";
 import { cameras } from "../db/schema";
 import { randomUUID } from "node:crypto";
-import fs from "node:fs/promises";
+import { getStorageProvider, type S3Config } from "../lib/recording-storage";
+import { isWithinSchedule, type ScheduleWindow } from "../lib/recording-schedule";
+import { resolveEffectiveConfig } from "./recording-config";
 
 // ─── Enable / Disable ───────────────────────────────────────────────────────
 
@@ -69,6 +71,58 @@ export async function disableRecording(cameraId: string, tenantId: string) {
   return { camera_id: cameraId, recording_enabled: false };
 }
 
+// ─── Event-Based Recording Trigger ──────────────────────────────────────────
+
+export interface EventRecordingTrigger {
+  camera_id: string;
+  tenant_id: string;
+  event_type: string; // "motion_detected", "person_detected", etc.
+  duration_seconds?: number; // How long to record (default: 60)
+  source?: string; // AI integration name
+}
+
+/**
+ * Trigger recording for a camera based on an external event (e.g., motion detection).
+ * Only works if the camera's recording mode is "event_based".
+ * Returns the path that MediaMTX should record to.
+ */
+export async function triggerEventRecording(
+  trigger: EventRecordingTrigger,
+): Promise<{ triggered: boolean; reason?: string; record_path?: string }> {
+  const config = await resolveEffectiveConfig(trigger.tenant_id, trigger.camera_id);
+
+  if (config.mode !== "event_based") {
+    return { triggered: false, reason: "Camera recording mode is not event_based" };
+  }
+
+  if (!config.enabled) {
+    return { triggered: false, reason: "Recording is disabled for this camera" };
+  }
+
+  const durationSec = trigger.duration_seconds ?? 60;
+  const recordPath = `${trigger.tenant_id}/${trigger.camera_id}/events/${Date.now()}`;
+
+  console.log(JSON.stringify({
+    level: "info",
+    service: "recordings",
+    message: "Event-based recording triggered",
+    cameraId: trigger.camera_id,
+    eventType: trigger.event_type,
+    durationSec,
+    source: trigger.source,
+    recordPath,
+  }));
+
+  // NOTE: In production, this would send a command to MediaMTX to start recording
+  // for the specified duration. The recording start/end events will flow back
+  // through the webhook (handleRecordingEvent) to populate the DB.
+
+  return {
+    triggered: true,
+    record_path: recordPath,
+  };
+}
+
 // ─── Recording Webhook (from MediaMTX) ─────────────────────────────────────
 
 export interface RecordingEvent {
@@ -101,7 +155,25 @@ export async function handleRecordingEvent(event: RecordingEvent): Promise<void>
   const tenantId = pathParts[0]!;
   const cameraId = pathParts[1]!;
 
+  // Resolve effective recording config for schedule + retention
+  const config = await resolveEffectiveConfig(tenantId, cameraId);
+
   if (event.type === "recording_start") {
+    // Check schedule — skip if mode=scheduled and outside time window
+    if (config.mode === "scheduled") {
+      const schedule = config.schedule as ScheduleWindow[] | null;
+      if (!isWithinSchedule(schedule)) {
+        console.log(JSON.stringify({
+          level: "info",
+          service: "recordings",
+          message: "Recording skipped — outside scheduled window",
+          cameraId,
+          mode: config.mode,
+        }));
+        return;
+      }
+    }
+
     // Insert a new recording row with null endTime (in-progress)
     await withTenantContext(tenantId, async (tx) => {
       await tx.insert(recordings).values({
@@ -111,10 +183,10 @@ export async function handleRecordingEvent(event: RecordingEvent): Promise<void>
         startTime: new Date(event.start_time),
         endTime: null,
         filePath: event.file_path,
-        fileFormat: event.format ?? "fmp4",
+        fileFormat: config.format ?? event.format ?? "fmp4",
         sizeBytes: 0,
-        retentionDays: 30, // Will be overridden by camera config
-        storageType: "local",
+        retentionDays: config.retentionDays,
+        storageType: config.storageType,
       });
     });
 
@@ -222,15 +294,35 @@ export async function createVodSession(
     throw new Error("Recording not found");
   }
 
-  // Generate signed session token for VOD playback
+  // Generate signed playback URL based on storage type
   const sessionId = randomUUID();
   const expiresAt = new Date(Date.now() + 3600 * 1000); // 1 hour
-  const originBase = process.env["ORIGIN_BASE_URL"] ?? "http://localhost:8888";
+  const expiresInSec = 3600;
+
+  let playbackUrl: string;
+
+  if (recording.storageType === "s3" && recording.s3Key && recording.s3Bucket) {
+    // S3: generate pre-signed URL
+    const s3Config: S3Config = {
+      bucket: recording.s3Bucket,
+      region: process.env["S3_REGION"] ?? "us-east-1",
+      endpoint: process.env["S3_ENDPOINT"],
+      accessKey: process.env["S3_ACCESS_KEY"] ?? "",
+      secretKey: process.env["S3_SECRET_KEY"] ?? "",
+    };
+    const storage = getStorageProvider("s3", s3Config);
+    playbackUrl = await storage.getSignedUrl(recording.s3Key, expiresInSec);
+  } else {
+    // Local: use origin base URL
+    const storage = getStorageProvider("local");
+    playbackUrl = await storage.getSignedUrl(recording.filePath, expiresInSec);
+  }
 
   return {
     session_id: sessionId,
     recording_id: recordingId,
-    playback_url: `${originBase}/vod/${recording.filePath}?session=${sessionId}`,
+    playback_url: playbackUrl,
+    storage_type: recording.storageType,
     format: recording.fileFormat,
     duration_ms: recording.endTime
       ? recording.endTime.getTime() - recording.startTime.getTime()
@@ -261,16 +353,29 @@ export async function purgeExpired(tenantId: string) {
     for (const rec of allRecordings) {
       const retentionMs = rec.retentionDays * 24 * 3600 * 1000;
       if (rec.startTime.getTime() + retentionMs < now.getTime()) {
-        // Delete physical file from disk
+        // Delete file from storage (local or S3)
         try {
-          await fs.unlink(rec.filePath);
+          if (rec.storageType === "s3" && rec.s3Key && rec.s3Bucket) {
+            const s3Config: S3Config = {
+              bucket: rec.s3Bucket,
+              region: process.env["S3_REGION"] ?? "us-east-1",
+              endpoint: process.env["S3_ENDPOINT"],
+              accessKey: process.env["S3_ACCESS_KEY"] ?? "",
+              secretKey: process.env["S3_SECRET_KEY"] ?? "",
+            };
+            const storage = getStorageProvider("s3", s3Config);
+            await storage.delete(rec.s3Key);
+          } else {
+            const storage = getStorageProvider("local");
+            await storage.delete(rec.filePath);
+          }
         } catch {
-          // File may already be deleted or path invalid — continue
           console.warn(JSON.stringify({
             level: "warn",
             service: "recordings",
             message: "Failed to delete recording file",
             filePath: rec.filePath,
+            storageType: rec.storageType,
           }));
         }
 

@@ -1000,6 +1000,10 @@ The platform provides webhook-style integration points for third-party AI analyt
 - **FR-099**: System MUST provide a Recording Detail page per camera, showing: HLS VOD player, timeline bar (clickable to seek), day navigation, clips table, and camera recording info with inheritance source.
 - **FR-100**: System MUST use a single date-range picker component (not separate from/to fields) for filtering recordings by date range.
 - **FR-101**: System MUST support bulk selection of recordings with per-file download (not ZIP).
+- **FR-103**: System MUST support S3-compatible storage as an alternative to local disk for recording files, with configurable bucket, region, endpoint, and credentials. VOD playback MUST use pre-signed S3 URLs.
+- **FR-104**: System MUST enforce scheduled recording mode by checking configured time windows (day + from/to hours) before starting new recordings. Recordings outside the schedule MUST be skipped with a log entry.
+- **FR-105**: System MUST support event-based recording triggered by external AI integrations via POST /internal/recording/trigger. Only cameras with mode=event_based respond to triggers. Default recording duration: 60 seconds.
+- **FR-106**: System MUST create composite database indexes on recordings(cameraId, startTime) and unique index on filePath for query performance.
 
 ### AI Integration Hooks
 
