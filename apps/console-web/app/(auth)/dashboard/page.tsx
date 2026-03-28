@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useCameraStatusStream } from "@/hooks/use-camera-status-stream";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";

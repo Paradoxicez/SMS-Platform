@@ -109,7 +109,7 @@ function createMarkerIcon(color: string, name: string, zoom: number, highlight =
 }
 
 const MapViewInner = forwardRef<MapViewHandle, MapViewProps>(
-  function MapViewInner({ cameras, isPublic = false, projectKey, pinMode = false, onMapClick }, ref) {
+  function MapViewInner({ cameras, isPublic: _isPublic = false, projectKey, pinMode = false, onMapClick }, ref) {
     const mapRef = useRef<HTMLDivElement>(null);
     const mapInstanceRef = useRef<L.Map | null>(null);
     const markersRef = useRef<Map<string, L.Marker>>(new Map());
@@ -224,7 +224,7 @@ const MapViewInner = forwardRef<MapViewHandle, MapViewProps>(
 
       // Update icons on zoom change (dot vs label)
       function handleZoom() {
-        const zoom = map.getZoom();
+        const zoom = map!.getZoom();
         validCameras.forEach((camera) => {
           const marker = markersRef.current.get(camera.id);
           if (marker) {

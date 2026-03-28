@@ -2,11 +2,9 @@ import { eq, count } from "drizzle-orm";
 import { db } from "../db/client";
 import { tenants, cameras, projects, users, subscriptionPlans } from "../db/schema";
 import {
-  isOnPrem,
   getEffectiveLimits,
   getEffectiveFeatures,
   hasFeature as licenseHasFeature,
-  getCachedLicenseStatus,
 } from "./license";
 
 export interface PlanLimits {
@@ -26,8 +24,6 @@ export interface UsageSummary {
   planName: string;
   planDisplayName: string;
 }
-
-const UNLIMITED = 999999;
 
 const DEFAULT_LIMITS: PlanLimits = {
   maxCameras: 5,

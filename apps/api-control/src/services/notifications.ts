@@ -1,4 +1,4 @@
-import { eq, and, desc, count, sql } from "drizzle-orm";
+import { eq, and, desc, count } from "drizzle-orm";
 import { db, withTenantContext } from "../db/client";
 import { notifications } from "../db/schema/notifications";
 import Redis from "ioredis";

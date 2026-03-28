@@ -14,7 +14,7 @@ interface UnifiedPlayerProps {
 }
 
 export function UnifiedPlayer({
-  cameraId,
+  cameraId: _cameraId,
   playbackUrl,
   cameraPath,
   className,

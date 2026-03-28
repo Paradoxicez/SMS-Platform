@@ -8,8 +8,9 @@ import { AppError } from "../middleware/error-handler";
 import { checkQuota } from "../services/quota";
 import { issueSession } from "../services/playback";
 import { rateLimitMiddleware } from "../middleware/rate-limit";
+import type { AppEnv } from "../types";
 
-const mapRouter = new Hono();
+const mapRouter = new Hono<AppEnv>();
 
 /**
  * T084: Map API route

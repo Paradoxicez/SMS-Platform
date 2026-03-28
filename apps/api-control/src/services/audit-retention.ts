@@ -1,4 +1,4 @@
-import { lt, sql, count } from "drizzle-orm";
+import { lt, count } from "drizzle-orm";
 import { db } from "../db/client";
 import { auditEvents } from "../db/schema/audit-events";
 

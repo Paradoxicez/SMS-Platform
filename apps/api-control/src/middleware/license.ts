@@ -7,8 +7,7 @@ import {
   getCachedLicenseStatus,
   isOnPrem,
 } from "../services/license";
-
-let licenseCheckInterval: ReturnType<typeof setInterval> | null = null;
+import type { AppEnv } from "../types";
 
 /**
  * Initialize the license checker.
@@ -37,7 +36,7 @@ export async function initLicenseChecker(): Promise<void> {
     }
 
     // Re-check every hour
-    licenseCheckInterval = setInterval(
+    setInterval(
       async () => {
         try {
           const s = await getLicenseStatus(tenant.id);
@@ -60,7 +59,7 @@ export async function initLicenseChecker(): Promise<void> {
  * and past the grace period (read_only mode). Only applies to on-prem.
  */
 export function requireValidLicense() {
-  return createMiddleware(async (c, next) => {
+  return createMiddleware<AppEnv>(async (c, next) => {
     if (!isOnPrem()) {
       await next();
       return;

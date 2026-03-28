@@ -48,6 +48,34 @@ vi.mock("../lib/ed25519", () => ({
 import { encodeLicense, type LicensePayload } from "../lib/license-codec";
 import { licenseRouter } from "../routes/license";
 
+// ─── Response types for test assertions ─────────────────────────────────────
+interface LicenseErrorResponse {
+  error: { code: string; message?: string };
+}
+
+interface LicenseActivateResponse {
+  data: {
+    valid: boolean;
+    status: string;
+    license_id: string;
+    plan: string;
+    limits: { cameras: number };
+    features: string[];
+    addons: string[];
+    days_remaining: number;
+  };
+  meta: { request_id: string; timestamp: string };
+}
+
+interface LicenseStatusResponse {
+  data: {
+    is_on_prem: boolean;
+    valid: boolean;
+    plan: string;
+    status?: string;
+  };
+}
+
 // ─── App setup ──────────────────────────────────────────────────────────────
 
 function createApp() {
@@ -108,7 +136,7 @@ describe("License E2E: generate → activate → status", () => {
     });
 
     expect(activateRes.status).toBe(200);
-    const activateBody = await activateRes.json();
+    const activateBody = (await activateRes.json()) as LicenseActivateResponse;
 
     expect(activateBody.data.valid).toBe(true);
     expect(activateBody.data.status).toBe("active");
@@ -126,7 +154,7 @@ describe("License E2E: generate → activate → status", () => {
     // 3. Check status via API
     const statusRes = await app.request("/license/status");
     expect(statusRes.status).toBe(200);
-    const statusBody = await statusRes.json();
+    const statusBody = (await statusRes.json()) as LicenseStatusResponse;
 
     expect(statusBody.data.is_on_prem).toBe(true);
     expect(statusBody.data.valid).toBe(true);
@@ -145,7 +173,7 @@ describe("License E2E: generate → activate → status", () => {
     });
 
     expect(res.status).toBe(422);
-    const body = await res.json();
+    const body = (await res.json()) as LicenseErrorResponse;
     expect(body.error.code).toBe("INVALID_LICENSE");
   });
 
@@ -159,7 +187,7 @@ describe("License E2E: generate → activate → status", () => {
     });
 
     expect(res.status).toBe(422);
-    const body = await res.json();
+    const body = (await res.json()) as LicenseErrorResponse;
     expect(body.error.code).toBe("LICENSE_EXPIRED");
   });
 
@@ -177,7 +205,7 @@ describe("License E2E: generate → activate → status", () => {
     });
 
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = (await res.json()) as LicenseActivateResponse;
     expect(body.data.status).toBe("grace_period");
     expect(body.data.valid).toBe(true);
   });
@@ -205,7 +233,7 @@ describe("License E2E: generate → activate → status", () => {
     });
 
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = (await res.json()) as LicenseActivateResponse;
     expect(body.data.plan).toBe("free");
     expect(body.data.features).toContain("hls");
     expect(body.data.features).not.toContain("webrtc");
@@ -226,7 +254,7 @@ describe("License E2E: generate → activate → status", () => {
     });
 
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = (await res.json()) as LicenseActivateResponse;
     expect(body.data.plan).toBe("enterprise");
     expect(body.data.features).toContain("ai");
     expect(body.data.features).toContain("sso");
@@ -247,7 +275,7 @@ describe("License E2E: generate → activate → status", () => {
     });
 
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = (await res.json()) as LicenseActivateResponse;
     expect(body.data.plan).toBe("starter");
     // Base starter features
     expect(body.data.features).toContain("hls");

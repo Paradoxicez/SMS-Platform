@@ -65,12 +65,7 @@ function LivePreview({ cameraId }: { cameraId: string }) {
     const video = videoRef.current;
     if (!video || !hlsUrl) return;
 
-    let hls: {
-      destroy: () => void;
-      loadSource: (url: string) => void;
-      attachMedia: (el: HTMLVideoElement) => void;
-      on: (event: string, cb: () => void) => void;
-    } | null = null;
+    let hls: InstanceType<typeof import("hls.js").default> | null = null;
 
     async function init() {
       try {
@@ -92,12 +87,12 @@ function LivePreview({ cameraId }: { cameraId: string }) {
         });
 
         hls.loadSource(hlsUrl!);
-        hls.attachMedia(video);
-        hls.on("hlsManifestParsed" as string, () => {
+        hls.attachMedia(video!);
+        (hls as unknown as { on: (event: string, cb: () => void) => void }).on("hlsManifestParsed", () => {
           video?.play().catch(() => {});
         });
 
-        hlsRef.current = hls;
+        hlsRef.current = hls as unknown as { destroy: () => void };
       } catch {
         // Failed to load HLS
       }

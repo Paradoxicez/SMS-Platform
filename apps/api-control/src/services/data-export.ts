@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { db, withTenantContext } from "../db/client";
+import { withTenantContext } from "../db/client";
 import {
   cameras,
   projects,

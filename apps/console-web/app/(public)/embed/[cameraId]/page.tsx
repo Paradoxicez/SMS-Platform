@@ -42,7 +42,7 @@ function EmbedPlayerContent() {
 
   const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
   const [protocol, setProtocol] = useState<"hls" | "webrtc" | "both">("hls");
-  const [codec, setCodec] = useState<string>("h264");
+  const [_codec, setCodec] = useState<string>("h264");
   const [playerMode, setPlayerMode] = useState<"hls" | "webrtc">("hls");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -210,14 +210,14 @@ function EmbedPlayerContent() {
       },
     };
 
-    const content = errorContent[error] ?? errorContent.unknown;
+    const content = errorContent[error] ?? errorContent.unknown!;
 
     return (
       <div className="flex items-center justify-center h-screen w-screen bg-black">
         <ErrorState
-          icon={content.icon}
-          title={content.title}
-          description={content.description}
+          icon={content!.icon}
+          title={content!.title}
+          description={content!.description}
         />
       </div>
     );

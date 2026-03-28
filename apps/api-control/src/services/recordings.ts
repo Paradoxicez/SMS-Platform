@@ -1,5 +1,5 @@
 import { eq, and, gte, lte, lt, desc } from "drizzle-orm";
-import { db, withTenantContext } from "../db/client";
+import { withTenantContext } from "../db/client";
 import { recordings } from "../db/schema/recordings";
 import { cameras } from "../db/schema";
 

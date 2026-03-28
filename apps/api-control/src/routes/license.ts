@@ -1,7 +1,8 @@
 import { Hono } from "hono";
 import { activateLicense, getLicenseStatus, isOnPrem } from "../services/license";
+import type { AppEnv } from "../types";
 
-export const licenseRouter = new Hono();
+export const licenseRouter = new Hono<AppEnv>();
 
 // POST /license/activate — validate, persist, and activate a license key
 licenseRouter.post("/license/activate", async (c) => {

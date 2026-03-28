@@ -33,18 +33,6 @@ export function useNotifications() {
     }
   }, []);
 
-  // Fetch unread count
-  const fetchUnreadCount = useCallback(async () => {
-    try {
-      const res = await apiClient.get<{ data: { count: number } }>(
-        "/notifications/unread-count",
-      );
-      setUnreadCount(res.data.count);
-    } catch {
-      // API unavailable
-    }
-  }, []);
-
   // Mark single notification as read
   const markAsRead = useCallback(async (notificationId: string) => {
     try {

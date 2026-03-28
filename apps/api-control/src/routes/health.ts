@@ -2,8 +2,9 @@ import { Hono } from "hono";
 import { sql } from "drizzle-orm";
 import { db } from "../db/client";
 import { redis } from "../lib/redis";
+import type { AppEnv } from "../types";
 
-const healthRouter = new Hono();
+const healthRouter = new Hono<AppEnv>();
 
 // In-memory metrics counters
 const metrics = {
@@ -120,7 +121,7 @@ healthRouter.get("/ready", async (c) => {
 });
 
 // T117: GET /metrics — Prometheus-format metrics
-healthRouter.get("/metrics", (c) => {
+healthRouter.get("/metrics", (_c) => {
   let output = "";
 
   // Request count

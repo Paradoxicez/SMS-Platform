@@ -764,7 +764,7 @@ function SitesTable({
                     {site.timezone ?? "UTC"}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
-                    {formatDate(site.created_at)}
+                    {formatDate(site.created_at instanceof Date ? site.created_at.toISOString() : site.created_at)}
                   </TableCell>
                   <TableCell onClick={(e) => e.stopPropagation()}>
                     <DropdownMenu>

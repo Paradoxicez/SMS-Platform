@@ -1,4 +1,4 @@
-import { eq, and, gte, lte, count, desc, sql } from "drizzle-orm";
+import { eq, and, gte, lte, count, desc } from "drizzle-orm";
 import { db, withTenantContext } from "../db/client";
 import { auditEvents } from "../db/schema/audit-events";
 

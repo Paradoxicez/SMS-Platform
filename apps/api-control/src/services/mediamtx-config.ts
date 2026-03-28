@@ -48,7 +48,7 @@ export async function getConfig(tenantId: string) {
   let liveConfig: Record<string, unknown>;
   try {
     const res = await mediamtxFetch("/v3/config/global/get");
-    liveConfig = res.ok ? await res.json() : DEFAULT_CONFIG;
+    liveConfig = res.ok ? (await res.json()) as Record<string, unknown> : DEFAULT_CONFIG;
   } catch {
     liveConfig = DEFAULT_CONFIG;
   }
@@ -64,9 +64,9 @@ export async function getConfig(tenantId: string) {
     .returning();
 
   return {
-    config: created.config,
-    version: created.version,
-    updatedAt: created.updatedAt,
+    config: created!.config,
+    version: created!.version,
+    updatedAt: created!.updatedAt,
   };
 }
 

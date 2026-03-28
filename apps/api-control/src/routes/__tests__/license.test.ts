@@ -14,6 +14,33 @@ vi.mock("../../services/license", () => ({
 
 import { licenseRouter } from "../license";
 
+// ─── Response types for test assertions ─────────────────────────────────────
+interface LicenseErrorResponse {
+  error: { code: string; message?: string };
+}
+
+interface LicenseActivateResponse {
+  data: {
+    valid: boolean;
+    status: string;
+    license_id: string;
+    plan: string;
+    limits: { cameras: number };
+    features: string[];
+    addons: string[];
+  };
+  meta: { request_id: string; timestamp: string };
+}
+
+interface LicenseStatusResponse {
+  data: {
+    is_on_prem: boolean;
+    valid: boolean;
+    status?: string;
+    plan?: string;
+  };
+}
+
 function createApp() {
   const app = new Hono();
   // Simulate tenant context middleware
@@ -41,7 +68,7 @@ describe("license routes", () => {
         body: JSON.stringify({}),
       });
       expect(res.status).toBe(400);
-      const body = await res.json();
+      const body = (await res.json()) as LicenseErrorResponse;
       expect(body.error.code).toBe("BAD_REQUEST");
     });
 
@@ -65,7 +92,7 @@ describe("license routes", () => {
         body: JSON.stringify({ key: "valid.license.key" }),
       });
       expect(res.status).toBe(200);
-      const body = await res.json();
+      const body = (await res.json()) as LicenseActivateResponse;
       expect(body.data.valid).toBe(true);
       expect(body.data.plan).toBe("pro");
       expect(body.data.license_id).toBe("LIC-2026-001");
@@ -85,7 +112,7 @@ describe("license routes", () => {
         body: JSON.stringify({ key: "invalid.key" }),
       });
       expect(res.status).toBe(422);
-      const body = await res.json();
+      const body = (await res.json()) as LicenseErrorResponse;
       expect(body.error.code).toBe("INVALID_LICENSE");
     });
 
@@ -102,7 +129,7 @@ describe("license routes", () => {
         body: JSON.stringify({ key: "expired.key" }),
       });
       expect(res.status).toBe(422);
-      const body = await res.json();
+      const body = (await res.json()) as LicenseErrorResponse;
       expect(body.error.code).toBe("LICENSE_EXPIRED");
     });
 
@@ -136,7 +163,7 @@ describe("license routes", () => {
 
       const res = await app.request("/license/status");
       expect(res.status).toBe(200);
-      const body = await res.json();
+      const body = (await res.json()) as LicenseStatusResponse;
       expect(body.data.is_on_prem).toBe(true);
       expect(body.data.status).toBe("active");
       expect(body.data.plan).toBe("pro");
@@ -152,7 +179,7 @@ describe("license routes", () => {
 
       const res = await app.request("/license/status");
       expect(res.status).toBe(200);
-      const body = await res.json();
+      const body = (await res.json()) as LicenseStatusResponse;
       expect(body.data.is_on_prem).toBe(false);
       expect(body.data.valid).toBe(true);
     });

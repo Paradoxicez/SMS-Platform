@@ -1,4 +1,5 @@
 import { createMiddleware } from "hono/factory";
+import type { AppEnv } from "../types";
 import { eq, and, sql } from "drizzle-orm";
 import { db } from "../db/client";
 import { users } from "../db/schema/users";
@@ -13,7 +14,7 @@ import { apiClients } from "../db/schema/api-clients";
  * look up user by keycloak_sub in users table.
  * Sets context variables: userId, tenantId, userRole, userEmail.
  */
-export const authMiddleware = createMiddleware(async (c, next) => {
+export const authMiddleware = createMiddleware<AppEnv>(async (c, next) => {
   const authHeader = c.req.header("Authorization");
   const apiKeyHeader = c.req.header("X-API-Key");
 
@@ -180,10 +181,10 @@ export const authMiddleware = createMiddleware(async (c, next) => {
     }
 
     // Set context variables for downstream middleware and handlers
-    c.set("userId", user.id);
-    c.set("tenantId", user.tenantId);
-    c.set("userRole", user.role);
-    c.set("userEmail", user.email);
+    c.set("userId", user!.id);
+    c.set("tenantId", user!.tenantId);
+    c.set("userRole", user!.role);
+    c.set("userEmail", user!.email);
 
     await next();
   } catch {

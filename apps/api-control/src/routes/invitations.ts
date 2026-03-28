@@ -7,8 +7,9 @@ import {
   acceptInvitation,
   listPendingInvitations,
 } from "../services/invitations";
+import type { AppEnv } from "../types";
 
-const invitationsRouter = new Hono();
+const invitationsRouter = new Hono<AppEnv>();
 
 // POST /users/invite — create invitation (admin only, auth required)
 invitationsRouter.post("/users/invite", requireRole("admin"), async (c) => {
@@ -67,7 +68,7 @@ invitationsRouter.get(
 export { invitationsRouter };
 
 // Public invitation routes (no auth required)
-const publicInvitationsRouter = new Hono();
+const publicInvitationsRouter = new Hono<AppEnv>();
 
 // GET /invitations/:token — validate invitation token (public)
 publicInvitationsRouter.get("/invitations/:token", async (c) => {

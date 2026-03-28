@@ -8,9 +8,11 @@ import {
   getUnreadCount,
 } from "../services/notifications";
 
+import type { AppEnv } from "../types";
+
 const REDIS_URL = process.env["REDIS_URL"] ?? "redis://localhost:6379";
 
-const notificationsRouter = new Hono();
+const notificationsRouter = new Hono<AppEnv>();
 
 // GET /notifications — list recent notifications
 notificationsRouter.get("/notifications", async (c) => {

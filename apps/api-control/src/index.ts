@@ -43,8 +43,9 @@ import { startStreamSync, stopStreamSync } from "./services/stream-sync";
 import { systemMetricsRouter } from "./routes/system-metrics";
 import { streamProxyRouter } from "./routes/stream-proxy";
 import { startMetricsCollector, stopMetricsCollector } from "./services/system-metrics";
+import type { AppEnv } from "./types";
 
-const app = new Hono();
+const app = new Hono<AppEnv>();
 
 // CORS — allow console-web to call API
 app.use(
@@ -107,7 +108,7 @@ app.get("/api/v1/docs", (c) => {
 });
 
 // Apply auth middleware for all /api routes
-const api = new Hono();
+const api = new Hono<AppEnv>();
 api.use("/*", authMiddleware);
 
 // Mount routes under /api/v1

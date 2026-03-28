@@ -350,7 +350,7 @@ export default function SiteDetailPage() {
                       {maskRtspUrl(camera.rtsp_url)}
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
-                      {formatDate(camera.created_at)}
+                      {formatDate(camera.created_at instanceof Date ? camera.created_at.toISOString() : camera.created_at)}
                     </TableCell>
                     <TableCell>
                       <DropdownMenu>

@@ -8,8 +8,9 @@ import {
   listPolicies,
   getPolicy,
 } from "../services/policies";
+import type { AppEnv } from "../types";
 
-const policiesRouter = new Hono();
+const policiesRouter = new Hono<AppEnv>();
 
 /**
  * T098: Policy routes

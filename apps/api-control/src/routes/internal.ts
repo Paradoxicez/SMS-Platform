@@ -4,8 +4,9 @@ import { eq } from "drizzle-orm";
 import { db } from "../db/client";
 import { cameras } from "../db/schema";
 import { AppError } from "../middleware/error-handler";
+import type { AppEnv } from "../types";
 
-const internalRouter = new Hono();
+const internalRouter = new Hono<AppEnv>();
 
 /**
  * Internal auth middleware — validates shared secret header.
@@ -35,7 +36,7 @@ internalRouter.use("/*", internalAuth);
 // POST /internal/cameras/:id/assign — assign camera to ingest node
 internalRouter.post("/cameras/:id/assign", async (c) => {
   const id = c.req.param("id");
-  const body = await c.req.json();
+  await c.req.json();
 
   const camera = await db.query.cameras.findFirst({
     where: eq(cameras.id, id),

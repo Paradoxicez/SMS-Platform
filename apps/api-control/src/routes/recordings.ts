@@ -6,11 +6,12 @@ import {
   listRecordings,
   createVodSession,
 } from "../services/recordings";
+import type { AppEnv } from "../types";
 
 /**
  * T292: Recording routes
  */
-const recordingsRouter = new Hono();
+const recordingsRouter = new Hono<AppEnv>();
 
 // POST /cameras/:id/recording/enable
 recordingsRouter.post(

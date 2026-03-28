@@ -1,5 +1,6 @@
 import { createMiddleware } from "hono/factory";
 import { logAuditEvent } from "../services/audit";
+import type { AppEnv } from "../types";
 
 /**
  * T047: Role-based access control middleware factory
@@ -8,7 +9,7 @@ import { logAuditEvent } from "../services/audit";
  * is in the list of allowed roles. Returns 403 if not authorized.
  */
 export function requireRole(...roles: string[]) {
-  return createMiddleware(async (c, next) => {
+  return createMiddleware<AppEnv>(async (c, next) => {
     const userRole = c.get("userRole") as string | undefined;
 
     if (!userRole || !roles.includes(userRole)) {

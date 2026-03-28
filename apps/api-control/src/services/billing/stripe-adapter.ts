@@ -76,7 +76,7 @@ export class StripeAdapter implements PaymentAdapter {
 
   async handleWebhook(
     payload: unknown,
-    signature: string,
+    _signature: string,
   ): Promise<{ event: string; tenantId?: string; planId?: string }> {
     if (!STRIPE_WEBHOOK_SECRET) {
       console.warn(
@@ -101,7 +101,7 @@ export class StripeAdapter implements PaymentAdapter {
   }
 
   async getSubscriptionStatus(
-    tenantId: string,
+    _tenantId: string,
   ): Promise<{ active: boolean; plan: string; renewsAt?: string }> {
     if (!STRIPE_SECRET_KEY) {
       console.warn(

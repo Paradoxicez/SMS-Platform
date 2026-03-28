@@ -1,5 +1,6 @@
 import { createMiddleware } from "hono/factory";
 import { redis } from "../lib/redis";
+import type { AppEnv } from "../types";
 
 // Re-export redis for backward compatibility
 export { redis };
@@ -13,7 +14,7 @@ const DEFAULT_RATE_LIMIT = 100; // requests per minute
  * Key pattern: ratelimit:{apiClientId}:{window_timestamp}
  * Returns 429 with rate limit headers when limit exceeded.
  */
-export const rateLimitMiddleware = createMiddleware(async (c, next) => {
+export const rateLimitMiddleware = createMiddleware<AppEnv>(async (c, next) => {
   const apiClientId = c.get("apiClientId") as string | undefined;
 
   // Only rate-limit API key authenticated requests

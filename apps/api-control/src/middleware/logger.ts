@@ -1,5 +1,6 @@
 import { createMiddleware } from "hono/factory";
 import { recordRequestMetrics } from "../routes/health";
+import type { AppEnv } from "../types";
 
 /**
  * T118: Structured JSON logging middleware
@@ -7,7 +8,7 @@ import { recordRequestMetrics } from "../routes/health";
  * Logs every request: method, path, status, duration_ms, request_id.
  * Generates a request_id (uuid) and sets it on the context for correlation.
  */
-export const loggerMiddleware = createMiddleware(async (c, next) => {
+export const loggerMiddleware = createMiddleware<AppEnv>(async (c, next) => {
   const requestId = crypto.randomUUID();
   c.set("requestId", requestId);
   c.header("X-Request-ID", requestId);

@@ -1,10 +1,11 @@
 import { Hono } from "hono";
 import { getApiUsage } from "../services/rate-analytics";
+import type { AppEnv } from "../types";
 
 /**
  * T278: Developer routes (rate analytics)
  */
-const developerRouter = new Hono();
+const developerRouter = new Hono<AppEnv>();
 
 // GET /developer/usage — API usage analytics
 developerRouter.get("/developer/usage", async (c) => {

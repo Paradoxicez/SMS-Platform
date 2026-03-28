@@ -11,8 +11,9 @@ import {
   revokeSession,
   batchCreateSessions,
 } from "../services/playback";
+import type { AppEnv } from "../types";
 
-const playbackRouter = new Hono();
+const playbackRouter = new Hono<AppEnv>();
 
 // ─── POST /playback/sessions ──────────────────────────────────────────────────
 // Issue a new playback session for a single camera

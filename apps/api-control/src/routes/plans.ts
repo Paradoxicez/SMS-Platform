@@ -2,8 +2,9 @@ import { Hono } from "hono";
 import { eq } from "drizzle-orm";
 import { db } from "../db/client";
 import { subscriptionPlans } from "../db/schema";
+import type { AppEnv } from "../types";
 
-export const plansRouter = new Hono();
+export const plansRouter = new Hono<AppEnv>();
 
 // GET /plans — list all active plans (public, for pricing page)
 plansRouter.get("/plans", async (c) => {

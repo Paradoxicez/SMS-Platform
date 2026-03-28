@@ -1,13 +1,14 @@
 import { Hono } from "hono";
 import { eq, and, count } from "drizzle-orm";
 import { createSiteSchema, updateSiteSchema } from "@repo/types";
-import { db, withTenantContext } from "../db/client";
-import { sites, projects, cameras, streamProfiles } from "../db/schema";
+import { withTenantContext } from "../db/client";
+import { sites, projects, cameras } from "../db/schema";
 import { requireRole } from "../middleware/rbac";
 import { logAuditEvent } from "../services/audit";
 import { AppError } from "../middleware/error-handler";
+import type { AppEnv } from "../types";
 
-const sitesRouter = new Hono();
+const sitesRouter = new Hono<AppEnv>();
 
 // POST /projects/:projectId/sites — create site
 sitesRouter.post(

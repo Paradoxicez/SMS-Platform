@@ -88,7 +88,7 @@ interface AcceptInvitationParams {
 }
 
 export async function acceptInvitation(params: AcceptInvitationParams) {
-  const { token, name, password } = params;
+  const { token, name, password: _password } = params;
 
   // Validate first
   const invitation = await db.query.invitations.findFirst({

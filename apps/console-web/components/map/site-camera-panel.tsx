@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Badge } from "@/components/ui/badge";
+// Badge unused but kept for future use
+
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -12,7 +13,6 @@ import {
 import {
   ChevronRight,
   MapPin,
-  MapPinOff,
   Crosshair,
   FolderKanban,
   Building2,
@@ -70,10 +70,10 @@ function statusColor(status: string) {
 
 export function SiteCameraPanel({
   onFocusCamera,
-  onPinCamera,
+  onPinCamera: _onPinCamera,
   onStartPinMode,
   pinModeTarget,
-  cameras,
+  cameras: _cameras,
 }: SiteCameraPanelProps) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [sitesByProject, setSitesByProject] = useState<
@@ -88,9 +88,6 @@ export function SiteCameraPanel({
   const [loadingCameras, setLoadingCameras] = useState<Set<string>>(
     new Set(),
   );
-
-  // Camera IDs that are currently on the map
-  const pinnedIds = new Set(cameras.map((c) => c.id));
 
   useEffect(() => {
     async function fetchProjects() {
@@ -277,7 +274,6 @@ export function SiteCameraPanel({
                                 </p>
                               ) : (
                                 (camerasBySite[site.id] ?? []).map((cam) => {
-                                  const isPinned = pinnedIds.has(cam.id);
                                   const hasCoords =
                                     cam.lat != null && cam.lng != null;
                                   const isPinTarget =

@@ -1,11 +1,9 @@
 import { eq, and, sql } from "drizzle-orm";
-import { db, withTenantContext, type Database } from "../db/client";
+import { withTenantContext } from "../db/client";
 import { streamProfiles, cameras } from "../db/schema";
 import { logAuditEvent } from "./audit";
 import { AppError } from "../middleware/error-handler";
 import type { CreateStreamProfileInput, UpdateStreamProfileInput } from "@repo/types";
-
-const DATA_PLANE_URL = process.env["DATA_PLANE_URL"] ?? "http://localhost:3002";
 
 export async function createProfile(
   tenantId: string,

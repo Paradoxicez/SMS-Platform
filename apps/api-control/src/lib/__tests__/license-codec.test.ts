@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { ed25519 } from "@noble/curves/ed25519.js";
 import {
   encodeLicense,

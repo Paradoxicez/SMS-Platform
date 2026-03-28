@@ -1,13 +1,14 @@
 import { Hono } from "hono";
-import { eq, and, sql, count } from "drizzle-orm";
+import { eq, and, count } from "drizzle-orm";
 import { createProjectSchema, updateProjectSchema } from "@repo/types";
-import { db, withTenantContext } from "../db/client";
+import { withTenantContext } from "../db/client";
 import { projects } from "../db/schema";
 import { requireRole } from "../middleware/rbac";
 import { logAuditEvent } from "../services/audit";
 import { AppError } from "../middleware/error-handler";
+import type { AppEnv } from "../types";
 
-const projectsRouter = new Hono();
+const projectsRouter = new Hono<AppEnv>();
 
 function generatePublicKey(): string {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";

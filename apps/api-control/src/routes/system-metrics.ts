@@ -4,8 +4,9 @@ import {
   getSystemMetricsSnapshot,
   getMetricsHistory,
 } from "../services/system-metrics";
+import type { AppEnv } from "../types";
 
-const systemMetricsRouter = new Hono();
+const systemMetricsRouter = new Hono<AppEnv>();
 
 // GET /system/metrics — current snapshot + history (one-time)
 systemMetricsRouter.get("/metrics", async (c) => {

@@ -7,8 +7,9 @@ import {
   listPaths,
   syncConfigToStreamEngine,
 } from "../services/mediamtx-config";
+import type { AppEnv } from "../types";
 
-const mediamtxRouter = new Hono();
+const mediamtxRouter = new Hono<AppEnv>();
 
 // GET /mediamtx/config — get config from DB (admin only)
 mediamtxRouter.get("/mediamtx/config", requireRole("admin"), async (c) => {

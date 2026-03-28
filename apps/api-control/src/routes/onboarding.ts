@@ -4,8 +4,9 @@ import { eq } from "drizzle-orm";
 import { db } from "../db/client";
 import { tenants } from "../db/schema/tenants";
 import { AppError } from "../middleware/error-handler";
+import type { AppEnv } from "../types";
 
-export const onboardingRouter = new Hono();
+export const onboardingRouter = new Hono<AppEnv>();
 
 // GET /onboarding/status
 onboardingRouter.get("/onboarding/status", async (c) => {

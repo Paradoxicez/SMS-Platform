@@ -86,7 +86,7 @@ export function CameraDetailSheet({
   onOpenChange,
   onStart,
   onStop,
-  onUpdated,
+  onUpdated: _onUpdated,
 }: CameraDetailSheetProps) {
   const [healthStatus, setHealthStatus] = useState<CameraHealthStatus | null>(
     null,

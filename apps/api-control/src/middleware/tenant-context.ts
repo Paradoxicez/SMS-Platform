@@ -1,6 +1,7 @@
 import { createMiddleware } from "hono/factory";
 import { sql } from "drizzle-orm";
 import { db } from "../db/client";
+import type { AppEnv } from "../types";
 
 /**
  * T048: RLS tenant context middleware
@@ -14,7 +15,7 @@ import { db } from "../db/client";
  * the db client, or use this middleware to set up a transaction on
  * the context.
  */
-export const tenantContextMiddleware = createMiddleware(async (c, next) => {
+export const tenantContextMiddleware = createMiddleware<AppEnv>(async (c, next) => {
   const tenantId = c.get("tenantId") as string | undefined;
 
   if (!tenantId) {

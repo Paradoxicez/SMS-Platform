@@ -1,5 +1,5 @@
-import { eq, and, sql, count, ilike, inArray } from "drizzle-orm";
-import { db, withTenantContext, type Database } from "../db/client";
+import { eq, and, sql, inArray } from "drizzle-orm";
+import { db, withTenantContext } from "../db/client";
 import { cameras, streams } from "../db/schema";
 import { logAuditEvent } from "./audit";
 import { AppError } from "../middleware/error-handler";
@@ -103,8 +103,8 @@ async function setupAndMonitor(
         const { mediamtxFetch } = await import("../lib/mediamtx-fetch");
         const res = await mediamtxFetch("/v3/paths/list");
         if (res.ok) {
-          const list = await res.json();
-          const path = (list.items || []).find((p: any) => p.name === `cam-${cameraId}`);
+          const list = (await res.json()) as { items?: { name: string; ready?: boolean }[] };
+          const path = (list.items || []).find((p) => p.name === `cam-${cameraId}`);
           if (path?.ready) {
             await db.update(cameras).set({ healthStatus: "online" }).where(eq(cameras.id, cameraId));
           }
@@ -293,7 +293,7 @@ export async function bulkOperation(params: BulkOperationParams) {
   // Verify all cameras belong to tenant
   const cameraList = await withTenantContext(tenantId, async (tx) => {
     return tx
-      .select({ id: cameras.id })
+      .select({ id: cameras.id, rtspUrl: cameras.rtspUrl })
       .from(cameras)
       .where(and(inArray(cameras.id, cameraIds), eq(cameras.tenantId, tenantId)));
   });
@@ -304,12 +304,12 @@ export async function bulkOperation(params: BulkOperationParams) {
 
   switch (operation) {
     case "start_all":
-      for (const id of validIds) {
+      for (const cam of cameraList) {
         try {
-          await triggerRtspValidation(id, "");
-          results.push({ id, status: "started" });
+          await setupCameraPipeline(cam.id, tenantId, cam.rtspUrl);
+          results.push({ id: cam.id, status: "started" });
         } catch {
-          results.push({ id, status: "failed" });
+          results.push({ id: cam.id, status: "failed" });
         }
       }
       break;

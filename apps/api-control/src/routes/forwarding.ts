@@ -2,8 +2,9 @@ import { Hono } from "hono";
 import { requireRole } from "../middleware/rbac";
 import { AppError } from "../middleware/error-handler";
 import { addRule, removeRule, listRules } from "../services/forwarding";
+import type { AppEnv } from "../types";
 
-const forwardingRouter = new Hono();
+const forwardingRouter = new Hono<AppEnv>();
 
 // POST /forwarding — create forwarding rule (admin only)
 forwardingRouter.post("/forwarding", requireRole("admin"), async (c) => {
@@ -62,7 +63,8 @@ forwardingRouter.get("/forwarding", requireRole("admin"), async (c) => {
 forwardingRouter.delete("/forwarding/:id", requireRole("admin"), async (c) => {
   const id = c.req.param("id");
 
-  const removed = await removeRule(id);
+  const tenantId = c.get("tenantId") as string;
+  const removed = await removeRule(id, tenantId);
 
   if (!removed) {
     throw new AppError("NOT_FOUND", "Forwarding rule not found", 404);

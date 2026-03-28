@@ -28,12 +28,6 @@ function getStatusColor(percent: number): string {
   return "#22c55e"; // green
 }
 
-function getGlowColor(percent: number): string {
-  if (percent >= 80) return "rgba(239,68,68,0.15)";
-  if (percent >= 50) return "rgba(245,158,11,0.15)";
-  return "rgba(34,197,94,0.1)";
-}
-
 function formatBytes(mb: number): string {
   if (mb >= 1024) return `${(mb / 1024).toFixed(1)} GB`;
   return `${mb} MB`;
@@ -90,9 +84,6 @@ function MetricCard({
   label,
   percent,
   subtitle,
-  data,
-  dataKey,
-  showChart = true,
 }: {
   icon: React.ElementType;
   label: string;
@@ -100,7 +91,6 @@ function MetricCard({
   subtitle: string;
 }) {
   const color = getStatusColor(percent);
-  const glow = getGlowColor(percent);
 
   return (
     <Card
@@ -141,7 +131,7 @@ function MetricCard({
 // ─── Bandwidth Card (special: shows in + out) ──────────────────────────────────
 
 function BandwidthCard({
-  data,
+  data: _data,
   currentIn,
   currentOut,
 }: {
@@ -150,7 +140,6 @@ function BandwidthCard({
   currentOut: number;
 }) {
   const color = "#22c55e";
-  const glow = "rgba(34,197,94,0.1)";
 
   return (
     <Card
@@ -201,8 +190,6 @@ export function SystemResources() {
   const eventSourceRef = useRef<EventSource | null>(null);
 
   useEffect(() => {
-    const token = typeof window !== "undefined" ? localStorage.getItem("auth_token") : null;
-
     // SSE doesn't support custom headers, so use the cookie-based auth
     const url = `${API_BASE}/api/v1/system/metrics/stream`;
     const es = new EventSource(url, { withCredentials: true });

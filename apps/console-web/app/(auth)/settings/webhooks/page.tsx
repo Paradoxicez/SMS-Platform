@@ -61,7 +61,7 @@ export default function WebhooksPage() {
   const [url, setUrl] = useState("");
   const [selectedEvents, setSelectedEvents] = useState<string[]>([]);
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
-  const [selectedWebhookId, setSelectedWebhookId] = useState<string | null>(null);
+  const [_selectedWebhookId, setSelectedWebhookId] = useState<string | null>(null);
 
   async function fetchWebhooks() {
     try {

@@ -7,11 +7,12 @@ import {
   getDeliveryLogs,
   deliverEvent,
 } from "../services/webhooks";
+import type { AppEnv } from "../types";
 
 /**
  * T269: Webhook routes
  */
-const webhooksRouter = new Hono();
+const webhooksRouter = new Hono<AppEnv>();
 
 // POST /webhooks — register webhook (admin)
 webhooksRouter.post(

@@ -124,10 +124,11 @@ export async function activateLicense(
   setLicenseMetrics(cachedStatus.status, cachedStatus.daysRemaining ?? 0, payload.plan);
 
   // 6. Audit log
-  await logAuditEvent({
+  logAuditEvent({
     tenantId,
-    userId: null,
-    event: "license.activated",
+    actorType: "system",
+    actorId: undefined,
+    eventType: "license.activated",
     resourceType: "license",
     resourceId: payload.id,
     details: {
@@ -136,8 +137,8 @@ export async function activateLicense(
       addons: payload.addons,
       expiresAt: payload.expiresAt,
     },
-    sourceIp: null,
-  }).catch(() => {});
+    sourceIp: undefined,
+  });
 
   return cachedStatus;
 }

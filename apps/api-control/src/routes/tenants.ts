@@ -1,13 +1,14 @@
 import { Hono } from "hono";
 import { eq } from "drizzle-orm";
 import { createTenantSchema, updateTenantSchema } from "@repo/types";
-import { db, withTenantContext } from "../db/client";
+import { db } from "../db/client";
 import { tenants } from "../db/schema";
 import { requireRole } from "../middleware/rbac";
 import { logAuditEvent } from "../services/audit";
 import { AppError } from "../middleware/error-handler";
+import type { AppEnv } from "../types";
 
-const tenantsRouter = new Hono();
+const tenantsRouter = new Hono<AppEnv>();
 
 // All tenant operations require admin role
 tenantsRouter.use("/*", requireRole("admin"));
@@ -25,14 +26,11 @@ tenantsRouter.post("/", async (c) => {
       billingEmail: data.billing_email,
       subscriptionTier: data.subscription_tier ?? "free",
       viewerHoursQuota: data.viewer_hours_quota ?? 1000,
-      egressQuotaBytes: data.egress_quota_bytes
-        ? BigInt(data.egress_quota_bytes)
-        : BigInt("107374182400"),
+      egressQuotaBytes: data.egress_quota_bytes ?? 107374182400,
     })
     .returning();
 
   const actorId = c.get("userId") as string;
-  const tenantId = c.get("tenantId") as string;
 
   logAuditEvent({
     tenantId: tenant!.id,

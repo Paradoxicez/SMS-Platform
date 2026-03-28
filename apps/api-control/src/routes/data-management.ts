@@ -2,11 +2,12 @@ import { Hono } from "hono";
 import { requireRole } from "../middleware/rbac";
 import { exportTenantData } from "../services/data-export";
 import { deleteTenant } from "../services/tenant-deletion";
+import type { AppEnv } from "../types";
 
 /**
  * T275: Data management routes (export + GDPR deletion)
  */
-const dataManagementRouter = new Hono();
+const dataManagementRouter = new Hono<AppEnv>();
 
 // POST /data/export — admin only, returns JSON data export
 dataManagementRouter.post(

@@ -8,6 +8,7 @@ import { cameras, sites, streamProfiles } from "../db/schema";
 import { requireRole } from "../middleware/rbac";
 import { requireCameraSlot } from "../middleware/feature-gate";
 import { requireValidLicense } from "../middleware/license";
+import type { AppEnv } from "../types";
 import { AppError } from "../middleware/error-handler";
 import { logAuditEvent } from "../services/audit";
 import { redis } from "../lib/redis";
@@ -21,7 +22,7 @@ import {
 
 const REDIS_URL = process.env["REDIS_URL"] ?? "redis://localhost:6379";
 
-const camerasRouter = new Hono();
+const camerasRouter = new Hono<AppEnv>();
 
 // POST /sites/:siteId/cameras — onboard camera
 camerasRouter.post(
@@ -197,7 +198,7 @@ camerasRouter.patch(
     });
 
     // If profile_id changed, restart pipeline with new profile settings
-    if (data.profile_id !== undefined) {
+    if ((data as Record<string, unknown>).profile_id !== undefined) {
       const { updateCameraPipeline } = await import("../services/stream-pipeline");
       updateCameraPipeline(id, tenantId).catch((err) => {
         console.error("Failed to update pipeline after profile change:", err);
@@ -264,7 +265,6 @@ camerasRouter.post(
   requireRole("admin", "operator"),
   async (c) => {
     const tenantId = c.get("tenantId") as string;
-    const actorId = c.get("userId") as string;
     const id = c.req.param("id");
 
     const camera = await withTenantContext(tenantId, async (tx) => {
@@ -336,7 +336,6 @@ camerasRouter.post(
   requireRole("admin", "operator"),
   async (c) => {
     const tenantId = c.get("tenantId") as string;
-    const actorId = c.get("userId") as string;
     const id = c.req.param("id");
 
     // Read current status before updating
@@ -489,7 +488,7 @@ camerasRouter.post(
       }
 
       // Update all valid cameras
-      const result = await tx
+      await tx
         .update(cameras)
         .set({ profileId: profile_id, updatedAt: new Date() })
         .where(and(inArray(cameras.id, validIds), eq(cameras.tenantId, tenantId)));

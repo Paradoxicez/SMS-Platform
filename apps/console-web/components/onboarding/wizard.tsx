@@ -44,11 +44,6 @@ export function OnboardingWizard({ open, onComplete, onSkip }: WizardProps) {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001"
 
   async function apiCall(path: string, body: Record<string, unknown>) {
-    const res = await fetch(`${apiUrl}${path}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-    })
     // We need to use the api-client pattern with session token
     // For simplicity, call via Next.js API proxy or direct with credentials
     const resp = await fetch(`/api/proxy${path}`, {

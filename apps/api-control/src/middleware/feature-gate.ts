@@ -1,12 +1,13 @@
 import { createMiddleware } from "hono/factory";
 import { checkCameraLimit, checkFeatureFlag } from "../services/feature-gate";
+import type { AppEnv } from "../types";
 
 /**
  * Middleware that checks if the tenant has an available camera slot.
  * Blocks camera creation with 403 if the limit is reached.
  */
 export function requireCameraSlot() {
-  return createMiddleware(async (c, next) => {
+  return createMiddleware<AppEnv>(async (c, next) => {
     const tenantId = c.get("tenantId") as string;
     if (!tenantId) {
       return c.json(
@@ -42,7 +43,7 @@ export function requireCameraSlot() {
  * Returns 403 with upgrade message if the feature is not available.
  */
 export function requireFeature(featureName: string) {
-  return createMiddleware(async (c, next) => {
+  return createMiddleware<AppEnv>(async (c, next) => {
     const tenantId = c.get("tenantId") as string;
     if (!tenantId) {
       return c.json(

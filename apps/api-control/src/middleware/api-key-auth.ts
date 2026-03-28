@@ -4,6 +4,7 @@ import { eq, and, isNull } from "drizzle-orm";
 import { db } from "../db/client";
 import { apiClients } from "../db/schema/api-clients";
 import { users } from "../db/schema/users";
+import type { AppEnv } from "../types";
 
 /**
  * T046: API key auth middleware
@@ -15,7 +16,7 @@ import { users } from "../db/schema/users";
  * Sets context variables: apiClientId, userId, tenantId, userRole.
  * Updates last_used_at.
  */
-export const apiKeyAuthMiddleware = createMiddleware(async (c, next) => {
+export const apiKeyAuthMiddleware = createMiddleware<AppEnv>(async (c, next) => {
   const apiKey = c.req.header("X-API-Key");
 
   if (!apiKey) {

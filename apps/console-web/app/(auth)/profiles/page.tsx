@@ -72,8 +72,8 @@ export default function ProfilesPage() {
   const sortedProfiles = sortData(profiles, (p: StreamProfile, key: string) => {
     if (key === "name") return p.name
     if (key === "protocol") return p.protocol
-    if (key === "resolution") return p.resolution
-    if (key === "fps") return p.max_fps
+    if (key === "resolution") return p.output_resolution
+    if (key === "fps") return p.max_framerate
     return null
   })
   const profilesPagination = useClientPagination(sortedProfiles, 20);
@@ -116,8 +116,7 @@ export default function ProfilesPage() {
       if (dialogMode === "edit" && editingProfile) {
         await apiClient.updateStreamProfile(editingProfile.id, {
           ...data,
-          version: (editingProfile as any).version ?? 1,
-        });
+        } as Partial<CreateStreamProfileInput>);
       } else {
         await apiClient.createStreamProfile(data);
       }

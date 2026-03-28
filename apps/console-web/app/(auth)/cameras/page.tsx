@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -666,7 +666,7 @@ export default function CamerasPage() {
                   </TableCell>
                   <TableCell>
                     <span className="text-sm text-muted-foreground">
-                      {formatUptime(camera.created_at)}
+                      {formatUptime(camera.created_at instanceof Date ? camera.created_at.toISOString() : camera.created_at)}
                     </span>
                   </TableCell>
                   <TableCell>

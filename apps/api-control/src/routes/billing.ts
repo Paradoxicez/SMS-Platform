@@ -7,8 +7,9 @@ import {
 } from "../services/billing";
 import { markPaymentCompleted } from "../services/billing/manual-adapter";
 import { requireRole } from "../middleware/rbac";
+import type { AppEnv } from "../types";
 
-export const billingRouter = new Hono();
+export const billingRouter = new Hono<AppEnv>();
 
 // GET /billing/usage — current usage vs limits
 billingRouter.get("/billing/usage", async (c) => {
@@ -120,7 +121,7 @@ billingRouter.post(
 /**
  * Webhook route — mounted separately without auth.
  */
-export const billingWebhookRouter = new Hono();
+export const billingWebhookRouter = new Hono<AppEnv>();
 
 // POST /billing/webhook — handle payment provider webhook (no auth)
 billingWebhookRouter.post("/billing/webhook", async (c) => {

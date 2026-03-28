@@ -5,7 +5,7 @@
  * Auto-recovers cameras when MediaMTX restarts or paths are lost.
  */
 
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { db } from "../db/client";
 import { cameras } from "../db/schema";
 import { mediamtxFetch } from "../lib/mediamtx-fetch";
@@ -75,7 +75,7 @@ async function syncStreams() {
     try {
       const res = await mediamtxFetch("/v3/paths/list");
       if (res.ok) {
-        const data = await res.json();
+        const data = (await res.json()) as { items?: MediaMTXPath[] };
         mediamtxPaths = data.items || [];
       } else {
         // MediaMTX unreachable — mark all as degraded
@@ -102,7 +102,6 @@ async function syncStreams() {
 
     for (const camera of activeCameras) {
       const pathName = `cam-${camera.id}`;
-      const hlsPathName = `${pathName}-hls`;
 
       // 3. Check if camera path exists in MediaMTX
       if (!pathNames.has(pathName)) {

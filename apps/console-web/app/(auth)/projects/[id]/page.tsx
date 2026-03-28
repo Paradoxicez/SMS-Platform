@@ -80,6 +80,7 @@ export default function ProjectDetailPage() {
     setEditDesc(project.description ?? "")
     setEditOpen(true)
   }
+  void openEditDialog;
 
   async function handleEditSave(e: React.FormEvent) {
     e.preventDefault()
@@ -116,6 +117,7 @@ export default function ProjectDetailPage() {
       })
     }
   }
+  void handleDelete;
 
   async function handleAddSite(data: {
     name: string
@@ -240,7 +242,7 @@ export default function ProjectDetailPage() {
                       {site.timezone ?? "UTC"}
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
-                      {formatDate(site.created_at)}
+                      {formatDate(site.created_at instanceof Date ? site.created_at.toISOString() : site.created_at)}
                     </TableCell>
                     <TableCell>
                       <DropdownMenu>

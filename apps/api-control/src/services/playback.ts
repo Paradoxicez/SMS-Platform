@@ -9,7 +9,6 @@ import { playbackSessions } from "../db/schema/playback-sessions";
 import { redis } from "../lib/redis";
 import { AppError } from "../middleware/error-handler";
 import { logAuditEvent } from "./audit";
-import { getEffectivePolicy } from "./policies";
 import { getCameraProfileSettings } from "./stream-pipeline";
 import { getStreamSecurityConfig, signStreamToken } from "./stream-security";
 
@@ -210,7 +209,7 @@ export async function issueSession(
     id: jti,
     cameraId,
     tenantId,
-    apiClientId: apiClientId || null,
+    apiClientId,
     expiresAt,
     allowedOrigins: allowedOrigins,
     viewerIp: viewerIp ?? null,

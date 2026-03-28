@@ -19,8 +19,8 @@ export default function ProfilePage() {
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
   const [role, setRole] = useState("viewer")
-  const [mfaEnabled, setMfaEnabled] = useState(false)
-  const [lastLogin, setLastLogin] = useState<string | null>(null)
+  const [mfaEnabled, _setMfaEnabled] = useState(false)
+  const [lastLogin, _setLastLogin] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
 

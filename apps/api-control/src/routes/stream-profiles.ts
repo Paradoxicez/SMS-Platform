@@ -13,8 +13,9 @@ import {
   cloneProfile,
   getCamerasUsingProfile,
 } from "../services/stream-profiles";
+import type { AppEnv } from "../types";
 
-const streamProfilesRouter = new Hono();
+const streamProfilesRouter = new Hono<AppEnv>();
 
 // POST /stream-profiles — create
 streamProfilesRouter.post(

@@ -4,11 +4,12 @@ import {
   getStreamSecurityConfig,
 } from "../services/stream-security";
 import { redis } from "../lib/redis";
+import type { AppEnv } from "../types";
 
 const ORIGIN_BASE_URL =
   process.env["ORIGIN_BASE_URL"] ?? "http://localhost:8888";
 
-const streamProxyRouter = new Hono();
+const streamProxyRouter = new Hono<AppEnv>();
 
 /**
  * GET /stream/:token/*
@@ -48,7 +49,7 @@ streamProxyRouter.get("/stream/:token/*", async (c) => {
   try {
     const upstream = await fetch(upstreamUrl);
     if (!upstream.ok) {
-      return c.json({ error: { code: "UPSTREAM_ERROR", message: "Stream not available" } }, upstream.status);
+      return c.json({ error: { code: "UPSTREAM_ERROR", message: "Stream not available" } }, upstream.status as 400 | 401 | 403 | 404 | 500 | 502 | 503 | 504);
     }
 
     const contentType = upstream.headers.get("content-type") ?? "application/octet-stream";

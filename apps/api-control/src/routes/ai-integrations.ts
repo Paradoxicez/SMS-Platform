@@ -6,11 +6,12 @@ import {
   deleteIntegration,
   listAiEvents,
 } from "../services/ai-integrations";
+import type { AppEnv } from "../types";
 
 /**
  * T298: AI integration routes
  */
-const aiIntegrationsRouter = new Hono();
+const aiIntegrationsRouter = new Hono<AppEnv>();
 
 // POST /ai-integrations — create (admin)
 aiIntegrationsRouter.post(

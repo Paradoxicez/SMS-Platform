@@ -7,8 +7,9 @@ import { users } from "../db/schema/users";
 import { verificationTokens } from "../db/schema/verification-tokens";
 import { AppError } from "../middleware/error-handler";
 import { sendVerificationEmail } from "../services/email";
+import type { AppEnv } from "../types";
 
-export const authRouter = new Hono();
+export const authRouter = new Hono<AppEnv>();
 
 // POST /auth/register
 authRouter.post("/auth/register", async (c) => {

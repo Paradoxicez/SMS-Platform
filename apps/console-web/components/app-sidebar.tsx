@@ -12,7 +12,6 @@ import {
   SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
-  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarSeparator,
@@ -46,7 +45,6 @@ import {
   Globe,
   Video,
   BrainCircuit,
-  ExternalLink,
 } from "lucide-react"
 
 const monitoringNav = [

@@ -182,21 +182,22 @@ export function PlayerDialog({
           return;
         }
 
-        hls = new Hls({
+        const hlsInstance = new Hls({
           enableWorker: true,
           lowLatencyMode: true,
         });
 
-        hls.loadSource(session!.playback_url);
-        hls.attachMedia(videoRef.current!);
+        hlsInstance.loadSource(session!.playback_url);
+        hlsInstance.attachMedia(videoRef.current!);
 
-        (hls as { on: (event: string, cb: () => void) => void }).on(
+        (hlsInstance as unknown as { on: (event: string, cb: () => void) => void }).on(
           "hlsManifestParsed" as string,
           () => {
             videoRef.current?.play().catch(() => {});
           },
         );
 
+        hls = hlsInstance as unknown as { destroy: () => void };
         hlsRef.current = hls;
       } catch {
         setError("Failed to initialize video player");

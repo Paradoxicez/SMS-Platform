@@ -9,8 +9,9 @@ import {
   enableApiKey,
   deleteApiKey,
 } from "../services/api-clients";
+import type { AppEnv } from "../types";
 
-const apiClientsRouter = new Hono();
+const apiClientsRouter = new Hono<AppEnv>();
 
 // POST /api-clients — generate key (admin, developer)
 apiClientsRouter.post(

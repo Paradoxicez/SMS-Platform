@@ -56,7 +56,7 @@ export async function addRule(
       await db
         .update(forwardingRules)
         .set({ status: "inactive", updatedAt: new Date() })
-        .where(eq(forwardingRules.id, rule.id));
+        .where(eq(forwardingRules.id, rule!.id));
 
       console.error(
         `Failed to configure MediaMTX forwarding for ${pathName}: ${res.status}`,
@@ -66,7 +66,7 @@ export async function addRule(
     await db
       .update(forwardingRules)
       .set({ status: "inactive", updatedAt: new Date() })
-      .where(eq(forwardingRules.id, rule.id));
+      .where(eq(forwardingRules.id, rule!.id));
 
     console.error(
       "Failed to configure MediaMTX forwarding:",
@@ -81,12 +81,12 @@ export async function addRule(
     actorId: userId,
     eventType: "forwarding.rule_created",
     resourceType: "forwarding_rule",
-    resourceId: rule.id,
+    resourceId: rule!.id,
     details: { cameraId, targetUrl },
     sourceIp,
   });
 
-  return rule;
+  return rule!;
 }
 
 /**

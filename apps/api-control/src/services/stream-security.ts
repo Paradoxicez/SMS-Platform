@@ -1,5 +1,4 @@
 import { createHmac } from "node:crypto";
-import { redis } from "../lib/redis";
 import { getConfig } from "./mediamtx-config";
 
 const SIGNING_SECRET =

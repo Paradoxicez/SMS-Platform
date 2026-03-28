@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
-import { eq, and, count, isNull } from "drizzle-orm";
-import { db, withTenantContext } from "../db/client";
+import { eq, and, isNull } from "drizzle-orm";
+import { withTenantContext } from "../db/client";
 import { apiClients } from "../db/schema/api-clients";
 import { users } from "../db/schema/users";
 import { projects } from "../db/schema/projects";

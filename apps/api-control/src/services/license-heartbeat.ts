@@ -3,7 +3,7 @@
  * Only active when LICENSE_HEARTBEAT_URL is configured.
  */
 
-import { count, eq } from "drizzle-orm";
+import { count } from "drizzle-orm";
 import { db } from "../db/client";
 import { cameras } from "../db/schema";
 import { getCachedLicenseStatus } from "./license";

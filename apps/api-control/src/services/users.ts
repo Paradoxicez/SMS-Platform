@@ -1,5 +1,5 @@
-import { eq, and, count, sql } from "drizzle-orm";
-import { db, withTenantContext } from "../db/client";
+import { eq, and, count } from "drizzle-orm";
+import { withTenantContext } from "../db/client";
 import { users } from "../db/schema/users";
 import { logAuditEvent } from "./audit";
 

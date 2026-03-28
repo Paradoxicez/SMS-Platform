@@ -5,8 +5,9 @@ import {
   exportAuditEvents,
   type AuditQueryFilters,
 } from "../services/audit";
+import type { AppEnv } from "../types";
 
-const auditRouter = new Hono();
+const auditRouter = new Hono<AppEnv>();
 
 // GET /audit/events — search events with query params
 auditRouter.get(

@@ -69,10 +69,10 @@ interface LogEntry {
 const LOG_LEVELS = ["debug", "info", "warn", "error"];
 
 export default function StreamEngineSettingsPage() {
-  const [config, setConfig] = useState<StreamEngineConfig>({});
+  const [_config, setConfig] = useState<StreamEngineConfig>({});
   const [configVersion, setConfigVersion] = useState(1);
-  const [paths, setPaths] = useState<StreamEnginePath[]>([]);
-  const [history, setHistory] = useState<ConfigHistoryEntry[]>([]);
+  const [_paths, setPaths] = useState<StreamEnginePath[]>([]);
+  const [_history, setHistory] = useState<ConfigHistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 

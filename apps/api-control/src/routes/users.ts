@@ -8,8 +8,9 @@ import {
   removeUser,
   updateProfile,
 } from "../services/users";
+import type { AppEnv } from "../types";
 
-const usersRouter = new Hono();
+const usersRouter = new Hono<AppEnv>();
 
 // PATCH /users/me — update current user's own profile (any authenticated user)
 usersRouter.patch("/users/me", async (c) => {

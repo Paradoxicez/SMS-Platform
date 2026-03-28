@@ -76,7 +76,7 @@ export function UpgradePrompt({
 }: UpgradePromptProps) {
   const upgrade = upgradeMessages[planName.toLowerCase()] ?? {
     nextPlan: "a higher plan",
-    nextLimit: "more",
+    nextLimit: 0 as number,
   }
 
   const featureLabel = feature.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
