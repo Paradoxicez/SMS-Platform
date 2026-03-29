@@ -514,12 +514,12 @@ function CamerasPage() {
         </Select>
 
         <Select value={recordingFilter} onValueChange={setRecordingFilter}>
-          <SelectTrigger className="w-[150px]">
+          <SelectTrigger className="w-[170px]">
             <SelectValue placeholder="Recording" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All</SelectItem>
-            <SelectItem value="recording">Recording</SelectItem>
+            <SelectItem value="all">All Recording</SelectItem>
+            <SelectItem value="recording">🔴 Recording</SelectItem>
             <SelectItem value="not_recording">Not Recording</SelectItem>
           </SelectContent>
         </Select>
