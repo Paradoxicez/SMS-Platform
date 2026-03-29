@@ -17,7 +17,7 @@ import type { Camera } from "@repo/types";
 import { formatDateTime } from "@/lib/format-date";
 import { apiClient, type CameraHealthStatus } from "../../lib/api-client";
 import { HlsPlayer } from "@/components/player/hls-player";
-import { VideoOff, Code2, CircleDot } from "lucide-react";
+import { VideoOff, Code2, CircleDot, Settings2 } from "lucide-react";
 import { EmbedCodeDialog } from "./embed-code-dialog";
 import { RecordingSettingsDialog } from "@/components/recordings/recording-settings-dialog";
 import { RecBadge } from "@/components/cameras/rec-badge";
@@ -405,11 +405,12 @@ export function CameraDetailSheet({
                       )}
                       <Button
                         variant="outline"
-                        size="sm"
-                        className="flex-1 whitespace-nowrap"
+                        size="icon"
+                        className="shrink-0"
                         onClick={() => setRecordingSettingsOpen(true)}
+                        title="Recording Settings"
                       >
-                        Recording Settings
+                        <Settings2 className="size-4" />
                       </Button>
                     </div>
               </TabsContent>
