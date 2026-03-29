@@ -52,7 +52,7 @@ app.use(
   "*",
   cors({
     origin: process.env["CORS_ORIGIN"] ?? "http://localhost:3000",
-    allowMethods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowHeaders: ["Content-Type", "Authorization", "X-API-Key"],
     exposeHeaders: ["X-RateLimit-Limit", "X-RateLimit-Remaining", "X-RateLimit-Reset"],
     credentials: true,
