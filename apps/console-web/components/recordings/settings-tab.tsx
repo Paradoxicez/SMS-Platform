@@ -93,6 +93,18 @@ export function RecordingSettingsTab() {
 
   return (
     <div className="space-y-6">
+      {/* Save button at top */}
+      <div className="flex justify-end">
+        <Button onClick={handleSave} disabled={saving}>
+          {saving ? (
+            <Loader2 className="mr-2 size-4 animate-spin" />
+          ) : (
+            <Save className="mr-2 size-4" />
+          )}
+          {saving ? "Saving..." : "Save Changes"}
+        </Button>
+      </div>
+
       {/* Recording Mode */}
       <Card>
         <CardHeader>
@@ -331,20 +343,6 @@ export function RecordingSettingsTab() {
         </CardContent>
       </Card>
 
-      {/* Save */}
-      <div className="flex items-center gap-3 pt-2">
-        <Button onClick={handleSave} disabled={saving} size="lg">
-          {saving ? (
-            <Loader2 className="mr-2 size-4 animate-spin" />
-          ) : (
-            <Save className="mr-2 size-4" />
-          )}
-          {saving ? "Saving..." : "Save & Apply"}
-        </Button>
-        <p className="text-xs text-muted-foreground">
-          Changes are saved to the database and automatically synced to MediaMTX for all active cameras.
-        </p>
-      </div>
     </div>
   )
 }
