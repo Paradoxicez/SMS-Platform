@@ -297,6 +297,16 @@ export default function StreamEngineSettingsPage() {
 
     setSaving(true);
     try {
+      // Re-fetch current version to avoid version conflict
+      let currentVersion = configVersion;
+      try {
+        const currentConfig = await apiClient.get<{ data: { version: number } }>("/mediamtx/config");
+        currentVersion = currentConfig.data.version;
+        setConfigVersion(currentVersion);
+      } catch {
+        // Use last known version
+      }
+
       const res = await apiClient.patch<{
         data: { config: StreamEngineConfig; version: number; changed: boolean };
       }>("/mediamtx/config", {
@@ -328,7 +338,7 @@ export default function StreamEngineSettingsPage() {
           cdnEnabled,
           cdnOriginUrl: cdnOriginUrl.trim() || undefined,
         },
-        version: configVersion,
+        version: currentVersion,
       });
       // Save recording config
       await apiClient.put("/recording-config/global", {
