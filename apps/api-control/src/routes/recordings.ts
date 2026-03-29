@@ -196,7 +196,26 @@ recordingsRouter.put(
     const scopeId = c.req.param("scopeId");
     const body = await c.req.json<Record<string, unknown>>();
 
-    const result = await upsertConfig(tenantId, scopeType, scopeId, body);
+    // Map snake_case from API to camelCase for Drizzle schema
+    const mapped: Record<string, unknown> = {};
+    if (body.mode !== undefined) mapped.mode = body.mode;
+    if (body.recording_mode !== undefined) mapped.mode = body.recording_mode;
+    if (body.schedule !== undefined) mapped.schedule = body.schedule;
+    if (body.retention_days !== undefined) mapped.retentionDays = body.retention_days;
+    if (body.retentionDays !== undefined) mapped.retentionDays = body.retentionDays;
+    if (body.auto_purge !== undefined) mapped.autoPurge = body.auto_purge;
+    if (body.autoPurge !== undefined) mapped.autoPurge = body.autoPurge;
+    if (body.storage_type !== undefined) mapped.storageType = body.storage_type;
+    if (body.storageType !== undefined) mapped.storageType = body.storageType;
+    if (body.storage_path !== undefined) mapped.storagePath = body.storage_path;
+    if (body.s3_config !== undefined) mapped.s3Config = body.s3_config;
+    if (body.format !== undefined) mapped.format = body.format;
+    if (body.resolution !== undefined) mapped.resolution = body.resolution;
+    if (body.max_segment_size_mb !== undefined) mapped.maxSegmentSizeMb = body.max_segment_size_mb;
+    if (body.maxSegmentSizeMb !== undefined) mapped.maxSegmentSizeMb = body.maxSegmentSizeMb;
+    if (body.enabled !== undefined) mapped.enabled = body.enabled;
+
+    const result = await upsertConfig(tenantId, scopeType, scopeId, mapped);
     return c.json({ data: result });
   },
 );
