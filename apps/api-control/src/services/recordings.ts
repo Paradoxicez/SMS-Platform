@@ -35,9 +35,13 @@ export async function enableRecording(
     });
   }
 
-  // Configure MediaMTX to start recording on this camera's path
+  // Configure MediaMTX with full recording config from DB
   const pathName = `cam-${cameraId}`;
   try {
+    const config = await resolveEffectiveConfig(tenantId, cameraId);
+    const retentionHours = config.retentionDays * 24;
+    const segmentMinutes = config.segmentDurationMinutes ?? 60;
+
     const mtxRes = await mediamtxFetch(`/v3/config/paths/patch/${pathName}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -45,6 +49,8 @@ export async function enableRecording(
         record: true,
         recordPath: `./recordings/%path/%Y-%m-%d_%H-%M-%S-%f`,
         recordFormat: "fmp4",
+        recordDeleteAfter: `${retentionHours}h0m0s`,
+        recordSegmentDuration: `${segmentMinutes}m0s`,
         runOnRecordSegmentCreate: "/on-record-segment.sh recording_start",
         runOnRecordSegmentComplete: "/on-record-segment.sh recording_end",
       }),
