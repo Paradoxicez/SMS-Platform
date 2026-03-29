@@ -139,6 +139,7 @@ export async function updateCamera(params: UpdateCameraParams) {
   if (updateFields.tags !== undefined) updateData.tags = updateFields.tags;
   if (updateFields.map_visible !== undefined) updateData.mapVisible = updateFields.map_visible;
   if (updateFields.policy_id !== undefined) updateData.policyId = updateFields.policy_id;
+  if (updateFields.profile_id !== undefined) updateData.profileId = updateFields.profile_id;
   updateData.updatedAt = new Date();
   updateData.version = sql`${cameras.version} + 1`;
 
