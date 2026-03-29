@@ -21,6 +21,7 @@ export interface StreamProfileConfig {
   output_resolution: "original" | "2160p" | "1440p" | "1080p" | "720p" | "480p" | "360p" | "240p";
 }
 
+// Width values must be even (divisible by 2) for libx264
 const RESOLUTION_MAP: Record<string, string> = {
   "2160p": "3840:2160",
   "1440p": "2560:1440",
@@ -316,11 +317,13 @@ export class IngestOrchestrator {
     }
 
     // Resolution scaling (downscale only, preserve aspect ratio)
+    // Use -2 for height to ensure even dimensions (required by libx264)
     if (needsResolutionScale) {
       const scale = RESOLUTION_MAP[profile.output_resolution];
       if (scale) {
-        // -2 ensures divisible by 2 for encoders; min() prevents upscaling
-        args.push("-vf", `scale='min(${scale.split(":")[0]},iw)':min'(${scale.split(":")[1]},ih)':force_original_aspect_ratio=decrease`);
+        const targetW = scale.split(":")[0]!;
+        // scale=W:-2 auto-calculates height as even number preserving aspect ratio
+        args.push("-vf", `scale='min(${targetW},iw)':-2`);
       }
     }
 

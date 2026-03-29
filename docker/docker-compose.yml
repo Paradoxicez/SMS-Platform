@@ -51,6 +51,8 @@ services:
     image: bluenviron/mediamtx:latest-ffmpeg
     container_name: sms-mediamtx
     restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "8554:8554"   # RTSP
       - "8888:8888"   # HLS

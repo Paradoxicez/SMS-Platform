@@ -157,10 +157,17 @@ export function CameraDetailSheet({
             ttl: 300,
           })
           .then((res) => setPlaybackUrl(res.data.playback_url))
-          .catch(() => {
-            // Fallback to direct URL if session creation fails
-            const fallback = process.env.NEXT_PUBLIC_MEDIAMTX_HLS_URL ?? "http://localhost:8888";
-            setPlaybackUrl(`${fallback}/cam-${camera.id}-hls/index.m3u8`);
+          .catch(async () => {
+            // Fallback: try -hls path first (transcoded), then original path
+            const base = process.env.NEXT_PUBLIC_MEDIAMTX_HLS_URL ?? "http://localhost:8888";
+            const hlsUrl = `${base}/cam-${camera.id}-hls/index.m3u8`;
+            const originalUrl = `${base}/cam-${camera.id}/index.m3u8`;
+            try {
+              const res = await fetch(hlsUrl, { method: "HEAD" });
+              setPlaybackUrl(res.ok ? hlsUrl : originalUrl);
+            } catch {
+              setPlaybackUrl(originalUrl);
+            }
           });
       }
     }

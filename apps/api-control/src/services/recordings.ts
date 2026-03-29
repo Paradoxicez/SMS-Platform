@@ -38,7 +38,7 @@ export async function enableRecording(
   // Configure MediaMTX to start recording on this camera's path
   const pathName = `cam-${cameraId}`;
   try {
-    await mediamtxFetch(`/v3/config/paths/patch/${pathName}`, {
+    const mtxRes = await mediamtxFetch(`/v3/config/paths/patch/${pathName}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -47,6 +47,16 @@ export async function enableRecording(
         recordFormat: "fmp4",
       }),
     });
+    if (!mtxRes.ok) {
+      const errText = await mtxRes.text().catch(() => "");
+      console.error(JSON.stringify({
+        level: "error",
+        service: "recordings",
+        message: `MediaMTX PATCH failed: ${mtxRes.status} ${errText}`,
+        cameraId,
+        pathName,
+      }));
+    }
     console.log(JSON.stringify({
       level: "info",
       service: "recordings",

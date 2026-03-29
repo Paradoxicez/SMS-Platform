@@ -45,6 +45,26 @@ authInternalUsers:
         path: ""
       - action: playback
         path: ""
+record: no
+recordPath: ./recordings/%path/%Y-%m-%d_%H-%M-%S-%f
+recordFormat: fmp4
+recordDeleteAfter: 720h
+recordSegmentDuration: 1h
+
+# Webhook on recording segment create/complete
+# $MTX_PATH = path name, $MTX_RECORD_PATH = file path
+runOnRecordSegmentCreate: >
+  curl -s -X POST "http://host.docker.internal:3001/internal/recording/event"
+  -H "Content-Type: application/json"
+  -H "X-Internal-Secret: dev-secret"
+  -d '{"type":"recording_start","path":"$MTX_PATH","file_path":"$MTX_RECORD_PATH","start_time":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}'
+
+runOnRecordSegmentComplete: >
+  curl -s -X POST "http://host.docker.internal:3001/internal/recording/event"
+  -H "Content-Type: application/json"
+  -H "X-Internal-Secret: dev-secret"
+  -d '{"type":"recording_end","path":"$MTX_PATH","file_path":"$MTX_RECORD_PATH","start_time":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}'
+
 paths:
   all:
     source: publisher
