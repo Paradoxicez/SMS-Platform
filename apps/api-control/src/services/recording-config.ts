@@ -15,6 +15,7 @@ export interface RecordingConfig {
   format: string;
   resolution: string;
   maxSegmentSizeMb: number;
+  segmentDurationMinutes: number;
   enabled: boolean;
 }
 
@@ -26,6 +27,7 @@ const DEFAULT_CONFIG: RecordingConfig = {
   format: "fmp4",
   resolution: "original",
   maxSegmentSizeMb: 1024,
+  segmentDurationMinutes: 60,
   enabled: true,
 };
 
@@ -207,6 +209,7 @@ function configToRecord(row: typeof recordingConfigs.$inferSelect): RecordingCon
     format: row.format,
     resolution: row.resolution,
     maxSegmentSizeMb: row.maxSegmentSizeMb,
+    segmentDurationMinutes: row.segmentDurationMinutes,
     enabled: row.enabled,
   };
 }

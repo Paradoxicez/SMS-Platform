@@ -115,6 +115,7 @@ export default function StreamEngineSettingsPage() {
   const [retentionDays, setRetentionDays] = useState("30");
   const [autoPurge, setAutoPurge] = useState(true);
   const [storagePath, setStoragePath] = useState("/recordings");
+  const [segmentDuration, setSegmentDuration] = useState("60");
 
   // Stream Log state
   const [logLevel, setLogLevel] = useState("info");
@@ -171,6 +172,7 @@ export default function StreamEngineSettingsPage() {
           retention_days?: number;
           auto_purge?: boolean;
           storage_path?: string;
+          segment_duration_minutes?: number;
         };
       }>("/recording-config/global");
       const rc = recRes.data;
@@ -178,6 +180,7 @@ export default function StreamEngineSettingsPage() {
       if (rc.retention_days !== undefined) setRetentionDays(String(rc.retention_days));
       if (rc.auto_purge !== undefined) setAutoPurge(rc.auto_purge);
       if (rc.storage_path) setStoragePath(rc.storage_path);
+      if (rc.segment_duration_minutes !== undefined) setSegmentDuration(String(rc.segment_duration_minutes));
     } catch {
       // Use defaults on error
     }
@@ -333,6 +336,7 @@ export default function StreamEngineSettingsPage() {
         retention_days: parseInt(retentionDays),
         auto_purge: autoPurge,
         storage_path: storagePath,
+        segment_duration_minutes: parseInt(segmentDuration),
         storage_type: "local",
         format: "fmp4",
         resolution: "original",
@@ -946,6 +950,26 @@ export default function StreamEngineSettingsPage() {
                   checked={autoPurge}
                   onCheckedChange={setAutoPurge}
                 />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="se-segment-duration">Segment Duration</Label>
+                <Select value={segmentDuration} onValueChange={setSegmentDuration}>
+                  <SelectTrigger id="se-segment-duration" className="w-full sm:w-[200px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">1 minute</SelectItem>
+                    <SelectItem value="5">5 minutes</SelectItem>
+                    <SelectItem value="15">15 minutes</SelectItem>
+                    <SelectItem value="30">30 minutes</SelectItem>
+                    <SelectItem value="60">1 hour</SelectItem>
+                    <SelectItem value="120">2 hours</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Recording files are split into segments of this duration. Shorter segments allow faster browsing but create more files.
+                </p>
               </div>
 
               <Separator />

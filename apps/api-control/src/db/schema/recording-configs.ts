@@ -47,6 +47,7 @@ export const recordingConfigs = pgTable(
     format: varchar("format", { length: 10 }).notNull().default("fmp4"),
     resolution: varchar("resolution", { length: 10 }).notNull().default("original"),
     maxSegmentSizeMb: integer("max_segment_size_mb").notNull().default(1024),
+    segmentDurationMinutes: integer("segment_duration_minutes").notNull().default(60),
 
     // Recording enabled (for camera scope: toggle on/off)
     enabled: boolean("enabled").notNull().default(true),

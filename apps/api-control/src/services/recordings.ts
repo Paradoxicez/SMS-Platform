@@ -174,6 +174,7 @@ export async function syncConfigToMediaMTX(
           record: config.enabled,
           recordFormat: "fmp4", // MediaMTX only supports fmp4
           recordDeleteAfter: retentionStr,
+          recordSegmentDuration: `${config.segmentDurationMinutes ?? 60}m0s`,
           recordPath: `./recordings/%path/%Y-%m-%d_%H-%M-%S-%f`,
         }),
       });

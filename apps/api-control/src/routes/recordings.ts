@@ -213,6 +213,8 @@ recordingsRouter.put(
     if (body.resolution !== undefined) mapped.resolution = body.resolution;
     if (body.max_segment_size_mb !== undefined) mapped.maxSegmentSizeMb = body.max_segment_size_mb;
     if (body.maxSegmentSizeMb !== undefined) mapped.maxSegmentSizeMb = body.maxSegmentSizeMb;
+    if (body.segment_duration_minutes !== undefined) mapped.segmentDurationMinutes = body.segment_duration_minutes;
+    if (body.segmentDurationMinutes !== undefined) mapped.segmentDurationMinutes = body.segmentDurationMinutes;
     if (body.enabled !== undefined) mapped.enabled = body.enabled;
 
     const result = await upsertConfig(tenantId, scopeType, scopeId, mapped);

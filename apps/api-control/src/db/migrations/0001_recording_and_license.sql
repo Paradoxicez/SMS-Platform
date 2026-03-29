@@ -81,7 +81,12 @@ CREATE INDEX IF NOT EXISTS "recordings_tenant_idx" ON "recordings" ("tenant_id")
 CREATE UNIQUE INDEX IF NOT EXISTS "recordings_file_path_idx" ON "recordings" ("file_path");
 
 -- ============================================================
--- 6. MIGRATE DATA: recording tag → column
+-- 6. NEW COLUMN: recording_configs.segment_duration_minutes
+-- ============================================================
+ALTER TABLE "recording_configs" ADD COLUMN IF NOT EXISTS "segment_duration_minutes" integer DEFAULT 60 NOT NULL;
+
+-- ============================================================
+-- 7. MIGRATE DATA: recording tag → column
 -- ============================================================
 UPDATE "cameras" SET "recording_enabled" = true WHERE "tags"::text LIKE '%__recording_enabled%';
 -- Clean up the tag
