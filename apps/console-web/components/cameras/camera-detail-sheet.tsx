@@ -370,37 +370,27 @@ export function CameraDetailSheet({
                           Stop Stream
                         </Button>
                       )}
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={() => setEmbedDialogOpen(true)}
-                        title="Get Embed Code"
-                      >
-                        <Code2 className="size-4" />
-                      </Button>
-                    </div>
-                    <div className="flex gap-2">
                       {isRecording ? (
                         <Button
                           variant="destructive"
-                          size="sm"
-                          className="flex-1"
+                          size="icon"
+                          className="shrink-0"
                           onClick={handleRecordingClick}
                           disabled={recordingLoading}
+                          title="Stop Recording"
                         >
-                          <CircleDot className="size-3.5 mr-1" />
-                          Stop Recording
+                          <CircleDot className="size-4" />
                         </Button>
                       ) : (
                         <Button
                           variant="outline"
-                          size="sm"
-                          className="flex-1"
+                          size="icon"
+                          className="shrink-0"
                           onClick={handleRecordingClick}
                           disabled={recordingLoading}
+                          title="Record"
                         >
-                          <CircleDot className="size-3.5 mr-1" />
-                          Record
+                          <CircleDot className="size-4" />
                         </Button>
                       )}
                       <Button
@@ -411,6 +401,15 @@ export function CameraDetailSheet({
                         title="Recording Settings"
                       >
                         <Settings2 className="size-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="shrink-0"
+                        onClick={() => setEmbedDialogOpen(true)}
+                        title="Get Embed Code"
+                      >
+                        <Code2 className="size-4" />
                       </Button>
                     </div>
               </TabsContent>
