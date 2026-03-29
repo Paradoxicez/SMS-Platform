@@ -45,6 +45,8 @@ export async function enableRecording(
         record: true,
         recordPath: `./recordings/%path/%Y-%m-%d_%H-%M-%S-%f`,
         recordFormat: "fmp4",
+        runOnRecordSegmentCreate: "/on-record-segment.sh recording_start",
+        runOnRecordSegmentComplete: "/on-record-segment.sh recording_end",
       }),
     });
     if (!mtxRes.ok) {
@@ -267,9 +269,33 @@ export interface RecordingEvent {
  * Called by the internal webhook endpoint.
  */
 export async function handleRecordingEvent(event: RecordingEvent): Promise<void> {
-  // Parse camera and tenant from MediaMTX path: "tenant-uuid/camera-uuid"
+  let tenantId: string;
+  let cameraId: string;
+
+  // Parse path — supports 2 formats:
+  // Format 1: "tenant-uuid/camera-uuid" (from manual webhook)
+  // Format 2: "cam-{camera-uuid}" (from MediaMTX runOnRecordSegment)
   const pathParts = event.path.split("/");
-  if (pathParts.length < 2) {
+  if (pathParts.length >= 2) {
+    tenantId = pathParts[0]!;
+    cameraId = pathParts[1]!;
+  } else if (event.path.startsWith("cam-")) {
+    cameraId = event.path.replace("cam-", "");
+    // Lookup tenant from camera (direct DB query, no tenant context needed)
+    const { db: rawDb } = await import("../db/client");
+    const [camera] = await rawDb.select({ tenantId: cameras.tenantId }).from(cameras).where(eq(cameras.id, cameraId)).limit(1);
+    if (!camera) {
+      console.warn(JSON.stringify({
+        level: "warn",
+        service: "recordings",
+        message: "Camera not found for recording event",
+        path: event.path,
+        cameraId,
+      }));
+      return;
+    }
+    tenantId = camera.tenantId;
+  } else {
     console.warn(JSON.stringify({
       level: "warn",
       service: "recordings",
@@ -278,9 +304,6 @@ export async function handleRecordingEvent(event: RecordingEvent): Promise<void>
     }));
     return;
   }
-
-  const tenantId = pathParts[0]!;
-  const cameraId = pathParts[1]!;
 
   // Resolve effective recording config for schedule + retention
   const config = await resolveEffectiveConfig(tenantId, cameraId);

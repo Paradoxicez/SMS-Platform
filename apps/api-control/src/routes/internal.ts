@@ -160,12 +160,21 @@ internalRouter.get("/nodes", async (c) => {
 internalRouter.post("/recording/event", async (c) => {
   const event = await c.req.json<RecordingEvent>();
 
-  if (!event.type || !event.path || !event.file_path || !event.start_time) {
+  if (!event.type || !event.path) {
+    console.warn(JSON.stringify({
+      level: "warn",
+      service: "recording-webhook",
+      message: "Missing fields in recording event",
+      received: { type: event.type, path: event.path, file_path: event.file_path, start_time: event.start_time },
+    }));
     return c.json(
-      { error: { code: "BAD_REQUEST", message: "Missing required fields: type, path, file_path, start_time" } },
+      { error: { code: "BAD_REQUEST", message: "Missing required fields: type, path" } },
       400,
     );
   }
+  // Default missing fields
+  if (!event.file_path) event.file_path = "unknown";
+  if (!event.start_time) event.start_time = new Date().toISOString();
 
   await handleRecordingEvent(event);
 
