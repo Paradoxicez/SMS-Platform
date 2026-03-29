@@ -30,7 +30,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Camera as CameraIcon, Upload, MoreHorizontal } from "lucide-react";
+import { Camera as CameraIcon, Upload, MoreHorizontal, CircleDot, Settings } from "lucide-react";
 import { toast } from "sonner";
 import type { Camera } from "@repo/types";
 import { apiClient, type StreamProfile } from "../../../lib/api-client";
@@ -41,6 +41,7 @@ import { BulkAssignDialog } from "../../../components/cameras/bulk-assign-dialog
 import { CsvDropZone } from "../../../components/cameras/csv-drop-zone";
 import { CsvImportDialog } from "../../../components/cameras/csv-import-dialog";
 import { EditCameraDialog } from "../../../components/cameras/edit-camera-dialog";
+import { RecordingSettingsDialog } from "@/components/recordings/recording-settings-dialog";
 import { SortableTableHead, useTableSort } from "@/components/ui/sortable-table-head";
 import { useCameraStatusStream } from "../../../hooks/use-camera-status-stream";
 
@@ -135,6 +136,9 @@ function CamerasPage() {
   const [csvParseResult, setCsvParseResult] = useState<CsvParseResult | null>(
     null,
   );
+
+  // Recording state
+  const [recordingSettingsCamera, setRecordingSettingsCamera] = useState<{ id: string; name: string } | null>(null);
 
   // Real-time camera status updates via SSE
   useCameraStatusStream((event) => {
@@ -270,6 +274,17 @@ function CamerasPage() {
       await fetchCameras();
     } catch {
       // Error handled by api client
+    }
+  };
+
+  const handleToggleRecording = async (camera: Camera) => {
+    const isRecording = ((camera as any).tags as string[] ?? []).includes("__recording_enabled");
+    try {
+      await apiClient.post(`/cameras/${camera.id}/recording/${isRecording ? "disable" : "enable"}`, {});
+      toast.success(isRecording ? "Recording disabled" : "Recording enabled");
+      await fetchCameras();
+    } catch {
+      toast.error("Failed to toggle recording");
     }
   };
 
@@ -607,6 +622,7 @@ function CamerasPage() {
                 <SortableTableHead sortKey="name" currentSortKey={sortKey} currentDirection={sortDirection} onSort={handleSort}>Name</SortableTableHead>
                 <SortableTableHead sortKey="site" currentSortKey={sortKey} currentDirection={sortDirection} onSort={handleSort}>Site</SortableTableHead>
                 <SortableTableHead sortKey="status" currentSortKey={sortKey} currentDirection={sortDirection} onSort={handleSort}>Status</SortableTableHead>
+                <TableHead className="w-8" />
                 <TableHead>RTSP URL</TableHead>
                 <TableHead>Profile</TableHead>
                 <TableHead>Tags</TableHead>
@@ -649,6 +665,14 @@ function CamerasPage() {
                     <StatusBadge status={camera.health_status} />
                   </TableCell>
                   <TableCell>
+                    {((camera as any).tags as string[] ?? []).includes("__recording_enabled") ? (
+                      <span className="relative flex h-3 w-3">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+                      </span>
+                    ) : null}
+                  </TableCell>
+                  <TableCell>
                     <span className="text-sm text-muted-foreground">
                       {maskRtspUrl(camera.rtsp_url)}
                     </span>
@@ -683,6 +707,16 @@ function CamerasPage() {
                     </span>
                   </TableCell>
                   <TableCell>
+                    <div className="flex items-center gap-1">
+                    <Button
+                      variant={((camera as any).tags as string[] ?? []).includes("__recording_enabled") ? "destructive" : "outline"}
+                      size="icon"
+                      className="size-8"
+                      onClick={() => handleToggleRecording(camera)}
+                      title={((camera as any).tags as string[] ?? []).includes("__recording_enabled") ? "Disable recording" : "Enable recording"}
+                    >
+                      <CircleDot className="size-4" />
+                    </Button>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="icon" className="size-8">
@@ -748,6 +782,12 @@ function CamerasPage() {
                           </DropdownMenuSubContent>
                         </DropdownMenuSub>
                         <DropdownMenuItem
+                          onClick={() => setRecordingSettingsCamera({ id: camera.id, name: camera.name })}
+                        >
+                          <Settings className="mr-2 size-4" />
+                          Recording Settings
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
                           className="text-red-600"
                           onClick={() => handleDeleteCamera(camera.id)}
                         >
@@ -755,6 +795,7 @@ function CamerasPage() {
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
@@ -843,6 +884,19 @@ function CamerasPage() {
         existingCameras={cameras}
         preselectedProfileId={preselectedProfileParam ?? undefined}
       />
+
+      {/* Recording Settings Dialog */}
+      {recordingSettingsCamera && (
+        <RecordingSettingsDialog
+          open={!!recordingSettingsCamera}
+          onOpenChange={(open) => {
+            if (!open) setRecordingSettingsCamera(null);
+          }}
+          scopeType="camera"
+          scopeId={recordingSettingsCamera.id}
+          scopeName={recordingSettingsCamera.name}
+        />
+      )}
     </div>
   );
 }

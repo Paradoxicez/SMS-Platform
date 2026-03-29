@@ -17,9 +17,9 @@ import type { Camera } from "@repo/types";
 import { formatDateTime } from "@/lib/format-date";
 import { apiClient, type CameraHealthStatus } from "../../lib/api-client";
 import { HlsPlayer } from "@/components/player/hls-player";
-import { Switch } from "@/components/ui/switch";
-import { VideoOff, Code2, CircleDot } from "lucide-react";
+import { VideoOff, Code2, CircleDot, Settings2 } from "lucide-react";
 import { EmbedCodeDialog } from "./embed-code-dialog";
+import { RecordingSettingsDialog } from "@/components/recordings/recording-settings-dialog";
 
 interface CameraDetailSheetProps {
   camera: Camera;
@@ -98,8 +98,8 @@ export function CameraDetailSheet({
   const [profileName, setProfileName] = useState("Default");
   const [bandwidth, setBandwidth] = useState<{ bytesIn: number; bytesOut: number } | null>(null);
   const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
-  const [recordingEnabled, setRecordingEnabled] = useState(false);
   const [recordingLoading, setRecordingLoading] = useState(false);
+  const [recordingSettingsOpen, setRecordingSettingsOpen] = useState(false);
 
   const currentStatus =
     localStatus ??
@@ -165,23 +165,16 @@ export function CameraDetailSheet({
     }
   }, [open, camera, isOnline]);
 
-  // Detect recording state from camera tags
-  useEffect(() => {
-    const tags = (camera.tags as string[]) ?? [];
-    setRecordingEnabled(tags.includes("__recording_enabled"));
-  }, [camera.tags]);
+  const isRecording = ((camera.tags as string[]) ?? []).includes("__recording_enabled");
 
-  async function handleRecordingToggle(enabled: boolean) {
+  async function handleRecordingClick() {
     setRecordingLoading(true);
     try {
-      const endpoint = enabled
-        ? `/cameras/${camera.id}/recording/enable`
-        : `/cameras/${camera.id}/recording/disable`;
+      const endpoint = isRecording
+        ? `/cameras/${camera.id}/recording/disable`
+        : `/cameras/${camera.id}/recording/enable`;
       await apiClient.post(endpoint, {});
-      setRecordingEnabled(enabled);
     } catch (err) {
-      // Revert on error + show error
-      setRecordingEnabled(!enabled);
       const message = err instanceof Error ? err.message : "Failed to toggle recording";
       console.error("Recording toggle error:", message);
       alert(message);
@@ -343,28 +336,6 @@ export function CameraDetailSheet({
                     </div>
                   </div>
 
-                    {/* Recording Toggle */}
-                    <div className="grid grid-cols-[100px_1fr] gap-2 items-center">
-                      <span className="text-sm font-medium text-muted-foreground">Recording</span>
-                      <div className="flex items-center gap-2">
-                        <Switch
-                          checked={recordingEnabled}
-                          onCheckedChange={handleRecordingToggle}
-                          disabled={recordingLoading}
-                        />
-                        <span className="text-sm text-muted-foreground flex items-center gap-1">
-                          {recordingEnabled ? (
-                            <>
-                              <CircleDot className="size-3 text-red-500" />
-                              Recording
-                            </>
-                          ) : (
-                            "Off"
-                          )}
-                        </span>
-                      </div>
-                    </div>
-
                     {/* Actions */}
                     <div className="flex gap-2 pt-4 border-t">
                       {isStopped ? (
@@ -397,6 +368,25 @@ export function CameraDetailSheet({
                           Stop Stream
                         </Button>
                       )}
+                      {isRecording ? (
+                        <Button
+                          variant="destructive"
+                          onClick={handleRecordingClick}
+                          disabled={recordingLoading}
+                        >
+                          <CircleDot className="size-4 mr-1" />
+                          Stop Recording
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          onClick={handleRecordingClick}
+                          disabled={recordingLoading}
+                        >
+                          <CircleDot className="size-4 mr-1" />
+                          Record
+                        </Button>
+                      )}
                       <Button
                         variant="outline"
                         size="icon"
@@ -404,6 +394,14 @@ export function CameraDetailSheet({
                         title="Get Embed Code"
                       >
                         <Code2 className="size-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => setRecordingSettingsOpen(true)}
+                        title="Recording Settings"
+                      >
+                        <Settings2 className="size-4" />
                       </Button>
                     </div>
               </TabsContent>
@@ -534,6 +532,14 @@ export function CameraDetailSheet({
         onClose={() => setEmbedDialogOpen(false)}
         cameraId={camera.id}
         cameraName={camera.name}
+      />
+
+      <RecordingSettingsDialog
+        open={recordingSettingsOpen}
+        onOpenChange={setRecordingSettingsOpen}
+        scopeType="camera"
+        scopeId={camera.id}
+        scopeName={camera.name}
       />
     </Sheet>
   );

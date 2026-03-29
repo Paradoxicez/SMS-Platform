@@ -27,9 +27,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { MoreHorizontal, MapPin } from "lucide-react"
+import { MoreHorizontal, MapPin, Video } from "lucide-react"
 import { BreadcrumbNav } from "@/components/breadcrumb-nav"
 import { SiteDialog } from "@/components/sites/site-dialog"
+import { RecordingSettingsDialog } from "@/components/recordings/recording-settings-dialog"
 import { apiClient } from "@/lib/api-client"
 import { toast } from "sonner"
 import { formatDate } from "@/lib/format-date"
@@ -52,6 +53,10 @@ export default function ProjectDetailPage() {
 
   // Add site dialog
   const [siteDialogOpen, setSiteDialogOpen] = useState(false)
+
+  // Recording settings
+  const [recordingSettingsOpen, setRecordingSettingsOpen] = useState(false)
+  const [recordingSettingsSite, setRecordingSettingsSite] = useState<{ id: string; name: string } | null>(null)
 
   const fetchData = useCallback(async () => {
     setLoading(true)
@@ -187,6 +192,10 @@ export default function ProjectDetailPage() {
           </div>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setRecordingSettingsOpen(true)}>
+            <Video className="mr-1.5 size-4" />
+            Recording Settings
+          </Button>
         </div>
       </div>
 
@@ -255,6 +264,10 @@ export default function ProjectDetailPage() {
                           <DropdownMenuItem asChild>
                             <a href={`/sites/${site.id}`}>View Details</a>
                           </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setRecordingSettingsSite({ id: site.id, name: site.name })}>
+                            <Video className="mr-2 size-4" />
+                            Recording Settings
+                          </DropdownMenuItem>
                           <DropdownMenuItem
                             className="text-red-600"
                             onClick={() => handleDeleteSite(site)}
@@ -315,6 +328,28 @@ export default function ProjectDetailPage() {
         onClose={() => setSiteDialogOpen(false)}
         onSave={handleAddSite}
       />
+
+      {/* Project Recording Settings Dialog */}
+      {project && (
+        <RecordingSettingsDialog
+          open={recordingSettingsOpen}
+          onOpenChange={setRecordingSettingsOpen}
+          scopeType="project"
+          scopeId={project.id}
+          scopeName={project.name}
+        />
+      )}
+
+      {/* Site Recording Settings Dialog */}
+      {recordingSettingsSite && (
+        <RecordingSettingsDialog
+          open={true}
+          onOpenChange={(open) => { if (!open) setRecordingSettingsSite(null) }}
+          scopeType="site"
+          scopeId={recordingSettingsSite.id}
+          scopeName={recordingSettingsSite.name}
+        />
+      )}
     </div>
   )
 }

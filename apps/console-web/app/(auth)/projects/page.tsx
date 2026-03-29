@@ -44,12 +44,14 @@ import {
   Plus,
   ChevronsLeft,
   ChevronsRight,
+  Video,
 } from "lucide-react"
 import { apiClient } from "@/lib/api-client"
 import { toast } from "sonner"
 import { SiteDialog } from "@/components/sites/site-dialog"
 import { AddCameraDialog } from "@/components/cameras/add-camera-dialog"
 import { EditCameraDialog } from "@/components/cameras/edit-camera-dialog"
+import { RecordingSettingsDialog } from "@/components/recordings/recording-settings-dialog"
 import { SortableTableHead, useTableSort } from "@/components/ui/sortable-table-head"
 import { TablePagination, useClientPagination } from "@/components/ui/table-pagination"
 import { formatDate } from "@/lib/format-date"
@@ -439,6 +441,7 @@ function ProjectsTable({
   const [name, setName] = useState("")
   const [desc, setDesc] = useState("")
   const [saving, setSaving] = useState(false)
+  const [recordingSettingsProject, setRecordingSettingsProject] = useState<{ id: string; name: string } | null>(null)
 
   const fetch = useCallback(async () => {
     setLoading(true)
@@ -573,6 +576,10 @@ function ProjectsTable({
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onClick={() => openEdit(p)}>Edit</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setRecordingSettingsProject({ id: p.id, name: p.name })}>
+                          <Video className="mr-2 size-4" />
+                          Recording Settings
+                        </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem className="text-red-600" onClick={() => handleDelete(p)}>
                           Delete
@@ -617,6 +624,16 @@ function ProjectsTable({
           </form>
         </DialogContent>
       </Dialog>
+
+      {recordingSettingsProject && (
+        <RecordingSettingsDialog
+          open={true}
+          onOpenChange={(open) => { if (!open) setRecordingSettingsProject(null) }}
+          scopeType="project"
+          scopeId={recordingSettingsProject.id}
+          scopeName={recordingSettingsProject.name}
+        />
+      )}
     </>
   )
 }
@@ -636,6 +653,7 @@ function SitesTable({
   const [loading, setLoading] = useState(true)
   const [siteDialogOpen, setSiteDialogOpen] = useState(false)
   const [editingSite, setEditingSite] = useState<Site | null>(null)
+  const [recordingSettingsSite, setRecordingSettingsSite] = useState<{ id: string; name: string } | null>(null)
   const sitesSort = useTableSort()
   const sortedSites = sitesSort.sortData(sites, (s: Site, key: string) => {
     if (key === "name") return s.name
@@ -782,6 +800,10 @@ function SitesTable({
                         >
                           Edit
                         </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setRecordingSettingsSite({ id: site.id, name: site.name })}>
+                          <Video className="mr-2 size-4" />
+                          Recording Settings
+                        </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
                           className="text-red-600"
@@ -821,6 +843,16 @@ function SitesTable({
         }
         title={editingSite ? "Edit Site" : "Add Site"}
       />
+
+      {recordingSettingsSite && (
+        <RecordingSettingsDialog
+          open={true}
+          onOpenChange={(open) => { if (!open) setRecordingSettingsSite(null) }}
+          scopeType="site"
+          scopeId={recordingSettingsSite.id}
+          scopeName={recordingSettingsSite.name}
+        />
+      )}
     </>
   )
 }

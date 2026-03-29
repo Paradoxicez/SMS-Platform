@@ -27,9 +27,10 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
-import { MoreHorizontal, Camera as CameraIcon, MapPin, RefreshCw } from "lucide-react"
+import { MoreHorizontal, Camera as CameraIcon, MapPin, RefreshCw, Video } from "lucide-react"
 import { BreadcrumbNav } from "@/components/breadcrumb-nav"
 import { SiteDialog } from "@/components/sites/site-dialog"
+import { RecordingSettingsDialog } from "@/components/recordings/recording-settings-dialog"
 import { AddCameraDialog } from "@/components/cameras/add-camera-dialog"
 import { apiClient, type StreamProfile } from "@/lib/api-client"
 import { toast } from "sonner"
@@ -92,6 +93,9 @@ export default function SiteDetailPage() {
 
   // Add camera dialog
   const [cameraDialogOpen, setCameraDialogOpen] = useState(false)
+
+  // Recording settings
+  const [recordingSettingsOpen, setRecordingSettingsOpen] = useState(false)
 
   // Real-time camera status updates
   useCameraStatusStream((event) => {
@@ -265,6 +269,10 @@ export default function SiteDetailPage() {
           </div>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setRecordingSettingsOpen(true)}>
+            <Video className="mr-1.5 size-4" />
+            Recording Settings
+          </Button>
           <Button variant="outline" onClick={() => setEditOpen(true)}>
             Edit
           </Button>
@@ -401,6 +409,17 @@ export default function SiteDetailPage() {
         }}
         siteId={siteId}
       />
+
+      {/* Recording Settings Dialog */}
+      {site && (
+        <RecordingSettingsDialog
+          open={recordingSettingsOpen}
+          onOpenChange={setRecordingSettingsOpen}
+          scopeType="site"
+          scopeId={site.id}
+          scopeName={site.name}
+        />
+      )}
     </div>
   )
 }

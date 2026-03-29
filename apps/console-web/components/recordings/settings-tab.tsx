@@ -1,8 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
-import { Save, Trash2, Plus, HardDrive } from "lucide-react"
-import { Badge } from "@/components/ui/badge"
+import { Save, HardDrive } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -20,20 +19,6 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
 import { apiClient } from "@/lib/api-client"
 
 // ---------------------------------------------------------------------------
@@ -50,35 +35,9 @@ interface GlobalConfig {
   max_segment_size_mb: number
 }
 
-interface ScopeOverride {
-  id: string
-  scope_type: "site" | "project" | "camera"
-  scope_id: string
-  scope_name: string
-  settings: Partial<GlobalConfig>
-}
-
-interface StorageUsage {
-  total_bytes: number
-  total_count: number
-  top_cameras: {
-    camera_id: string
-    total_bytes: number
-    recording_count: number
-  }[]
-}
-
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return "0 B"
-  const units = ["B", "KB", "MB", "GB", "TB"]
-  const i = Math.floor(Math.log(bytes) / Math.log(1024))
-  const value = bytes / Math.pow(1024, i)
-  return `${value.toFixed(1)} ${units[i] ?? "B"}`
-}
 
 const DEFAULT_GLOBAL_CONFIG: GlobalConfig = {
   recording_mode: "continuous",
@@ -102,22 +61,6 @@ export function RecordingSettingsTab() {
   const [saveSuccess, setSaveSuccess] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
 
-  // Scope overrides state
-  const [overrides, setOverrides] = useState<ScopeOverride[]>([])
-  const [overridesLoading, setOverridesLoading] = useState(true)
-  const [scopeTab, setScopeTab] = useState<"site" | "project" | "camera">("site")
-  const [showAddForm, setShowAddForm] = useState(false)
-  const [newOverride, setNewOverride] = useState({
-    scope_id: "",
-    recording_mode: "" as string,
-    retention_days: "" as string,
-    auto_purge: undefined as boolean | undefined,
-  })
-
-  // Storage usage state
-  const [storageUsage, setStorageUsage] = useState<StorageUsage | null>(null)
-  const [storageLoading, setStorageLoading] = useState(true)
-
   // ---------------------------------------------------------------------------
   // Data fetching
   // ---------------------------------------------------------------------------
@@ -136,46 +79,9 @@ export function RecordingSettingsTab() {
     }
   }, [])
 
-  const fetchOverrides = useCallback(async () => {
-    setOverridesLoading(true)
-    try {
-      const res = await apiClient.get<{ data: ScopeOverride[] | { items?: ScopeOverride[] } }>(
-        "/recording-config/overrides",
-      )
-      const data = res.data
-      if (Array.isArray(data)) {
-        setOverrides(data)
-      } else if (data && typeof data === "object" && "items" in data && Array.isArray(data.items)) {
-        setOverrides(data.items)
-      } else {
-        setOverrides([])
-      }
-    } catch {
-      setOverrides([])
-    } finally {
-      setOverridesLoading(false)
-    }
-  }, [])
-
-  const fetchStorageUsage = useCallback(async () => {
-    setStorageLoading(true)
-    try {
-      const res = await apiClient.get<{ data: StorageUsage }>(
-        "/recording-config/storage-usage",
-      )
-      setStorageUsage(res.data)
-    } catch {
-      setStorageUsage(null)
-    } finally {
-      setStorageLoading(false)
-    }
-  }, [])
-
   useEffect(() => {
     fetchGlobalConfig()
-    fetchOverrides()
-    fetchStorageUsage()
-  }, [fetchGlobalConfig, fetchOverrides, fetchStorageUsage])
+  }, [fetchGlobalConfig])
 
   // ---------------------------------------------------------------------------
   // Handlers
@@ -198,128 +104,6 @@ export function RecordingSettingsTab() {
     }
   }
 
-  async function handleAddOverride() {
-    if (!newOverride.scope_id.trim()) return
-    try {
-      const settings: Partial<GlobalConfig> = {}
-      if (newOverride.recording_mode) {
-        settings.recording_mode = newOverride.recording_mode as GlobalConfig["recording_mode"]
-      }
-      if (newOverride.retention_days) {
-        settings.retention_days = Number(newOverride.retention_days)
-      }
-      if (newOverride.auto_purge !== undefined) {
-        settings.auto_purge = newOverride.auto_purge
-      }
-
-      await apiClient.post("/recording-config/overrides", {
-        scope_type: scopeTab,
-        scope_id: newOverride.scope_id.trim(),
-        settings,
-      })
-      setShowAddForm(false)
-      setNewOverride({ scope_id: "", recording_mode: "", retention_days: "", auto_purge: undefined })
-      fetchOverrides()
-    } catch {
-      // Silently fail for now
-    }
-  }
-
-  async function handleRemoveOverride(id: string) {
-    try {
-      await apiClient.delete(`/recording-config/overrides/${id}`)
-      fetchOverrides()
-    } catch {
-      // Silently fail for now
-    }
-  }
-
-  // ---------------------------------------------------------------------------
-  // Render helpers
-  // ---------------------------------------------------------------------------
-
-  function renderOverridesList(scopeType: "site" | "project" | "camera") {
-    const filtered = overrides.filter((o) => o.scope_type === scopeType)
-
-    if (overridesLoading) {
-      return (
-        <div className="animate-pulse space-y-2 py-4">
-          <div className="h-8 bg-muted rounded" />
-          <div className="h-8 bg-muted rounded" />
-        </div>
-      )
-    }
-
-    if (filtered.length === 0 && !showAddForm) {
-      return (
-        <p className="text-sm text-muted-foreground py-4">
-          No overrides configured for this scope.
-        </p>
-      )
-    }
-
-    return (
-      <div className="space-y-3">
-        {filtered.map((override) => (
-          <div
-            key={override.id}
-            className="flex items-center justify-between rounded-md border p-3"
-          >
-            <div className="space-y-1">
-              <p className="text-sm font-medium">
-                {override.scope_name || override.scope_id}
-              </p>
-              <div className="flex flex-wrap gap-1">
-                {override.settings.recording_mode && (
-                  <Badge variant="outline" className="text-xs">
-                    Mode: {override.settings.recording_mode}
-                  </Badge>
-                )}
-                {override.settings.retention_days && (
-                  <Badge variant="outline" className="text-xs">
-                    Retention: {override.settings.retention_days}d
-                  </Badge>
-                )}
-                {override.settings.auto_purge !== undefined && (
-                  <Badge variant="outline" className="text-xs">
-                    Auto-purge: {override.settings.auto_purge ? "on" : "off"}
-                  </Badge>
-                )}
-                {override.settings.storage_type && (
-                  <Badge variant="outline" className="text-xs">
-                    Storage: {override.settings.storage_type}
-                  </Badge>
-                )}
-                {override.settings.format && (
-                  <Badge variant="outline" className="text-xs">
-                    Format: {override.settings.format}
-                  </Badge>
-                )}
-                {override.settings.resolution && (
-                  <Badge variant="outline" className="text-xs">
-                    Res: {override.settings.resolution}
-                  </Badge>
-                )}
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm">
-                Edit
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => handleRemoveOverride(override.id)}
-              >
-                <Trash2 className="size-4 text-destructive" />
-              </Button>
-            </div>
-          </div>
-        ))}
-      </div>
-    )
-  }
-
   // ---------------------------------------------------------------------------
   // Loading state
   // ---------------------------------------------------------------------------
@@ -330,7 +114,6 @@ export function RecordingSettingsTab() {
         <div className="animate-pulse space-y-4">
           <div className="h-8 w-48 bg-muted rounded" />
           <div className="h-64 bg-muted rounded" />
-          <div className="h-48 bg-muted rounded" />
         </div>
       </div>
     )
@@ -342,7 +125,7 @@ export function RecordingSettingsTab() {
 
   return (
     <div className="space-y-6">
-      {/* Section 1: Global Defaults */}
+      {/* Global Defaults */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -517,230 +300,6 @@ export function RecordingSettingsTab() {
               <p className="text-sm text-destructive">{saveError}</p>
             )}
           </div>
-        </CardContent>
-      </Card>
-
-      {/* Section 2: Scope Overrides */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Scope Overrides</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Tabs
-            value={scopeTab}
-            onValueChange={(val) => {
-              setScopeTab(val as "site" | "project" | "camera")
-              setShowAddForm(false)
-            }}
-          >
-            <TabsList>
-              <TabsTrigger value="site">Site</TabsTrigger>
-              <TabsTrigger value="project">Project</TabsTrigger>
-              <TabsTrigger value="camera">Camera</TabsTrigger>
-            </TabsList>
-
-            {(["site", "project", "camera"] as const).map((scope) => (
-              <TabsContent key={scope} value={scope} className="space-y-4">
-                {renderOverridesList(scope)}
-
-                {/* Add Override Form */}
-                {showAddForm && scopeTab === scope ? (
-                  <div className="rounded-md border p-4 space-y-4">
-                    <p className="text-sm font-medium">
-                      Add {scope} override
-                    </p>
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <div className="space-y-2">
-                        <Label>
-                          {scope === "site"
-                            ? "Site ID"
-                            : scope === "project"
-                              ? "Project ID"
-                              : "Camera ID"}
-                        </Label>
-                        <Input
-                          placeholder={`Enter ${scope} ID`}
-                          value={newOverride.scope_id}
-                          onChange={(e) =>
-                            setNewOverride((prev) => ({
-                              ...prev,
-                              scope_id: e.target.value,
-                            }))
-                          }
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Recording Mode (optional)</Label>
-                        <Select
-                          value={newOverride.recording_mode}
-                          onValueChange={(val) =>
-                            setNewOverride((prev) => ({
-                              ...prev,
-                              recording_mode: val,
-                            }))
-                          }
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Inherit default" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="continuous">
-                              Continuous
-                            </SelectItem>
-                            <SelectItem value="scheduled">Scheduled</SelectItem>
-                            <SelectItem value="event_based">
-                              Event Based
-                            </SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Retention Days (optional)</Label>
-                        <Select
-                          value={newOverride.retention_days}
-                          onValueChange={(val) =>
-                            setNewOverride((prev) => ({
-                              ...prev,
-                              retention_days: val,
-                            }))
-                          }
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Inherit default" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="7">7 days</SelectItem>
-                            <SelectItem value="14">14 days</SelectItem>
-                            <SelectItem value="30">30 days</SelectItem>
-                            <SelectItem value="60">60 days</SelectItem>
-                            <SelectItem value="90">90 days</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="flex items-center gap-3 rounded-md border p-3">
-                        <Label>Auto-purge</Label>
-                        <Switch
-                          checked={newOverride.auto_purge ?? false}
-                          onCheckedChange={(checked) =>
-                            setNewOverride((prev) => ({
-                              ...prev,
-                              auto_purge: checked,
-                            }))
-                          }
-                        />
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button size="sm" onClick={handleAddOverride}>
-                        Save Override
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => {
-                          setShowAddForm(false)
-                          setNewOverride({
-                            scope_id: "",
-                            recording_mode: "",
-                            retention_days: "",
-                            auto_purge: undefined,
-                          })
-                        }}
-                      >
-                        Cancel
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  scopeTab === scope && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowAddForm(true)}
-                    >
-                      <Plus className="mr-2 size-4" />
-                      Add Override
-                    </Button>
-                  )
-                )}
-              </TabsContent>
-            ))}
-          </Tabs>
-        </CardContent>
-      </Card>
-
-      {/* Section 3: Storage Usage */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <HardDrive className="size-5" />
-            Storage Usage
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {storageLoading ? (
-            <div className="animate-pulse space-y-3">
-              <div className="h-6 w-64 bg-muted rounded" />
-              <div className="h-32 bg-muted rounded" />
-            </div>
-          ) : storageUsage ? (
-            <div className="space-y-4">
-              <div className="flex flex-wrap gap-6">
-                <div>
-                  <p className="text-sm text-muted-foreground">Total Used</p>
-                  <p className="text-2xl font-bold">
-                    {formatBytes(storageUsage.total_bytes)}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">
-                    Total Recordings
-                  </p>
-                  <p className="text-2xl font-bold">
-                    {storageUsage.total_count.toLocaleString()}
-                  </p>
-                </div>
-              </div>
-
-              {storageUsage.top_cameras.length > 0 && (
-                <div className="space-y-2">
-                  <p className="text-sm font-medium">
-                    Top 5 Cameras by Storage
-                  </p>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Camera ID</TableHead>
-                        <TableHead className="text-right">Size</TableHead>
-                        <TableHead className="text-right">
-                          Recordings
-                        </TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {storageUsage.top_cameras.map((cam) => (
-                        <TableRow key={cam.camera_id}>
-                          <TableCell className="font-mono text-xs">
-                            {cam.camera_id}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            {formatBytes(cam.total_bytes)}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            {cam.recording_count.toLocaleString()}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
-            </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              Storage usage data is unavailable.
-            </p>
-          )}
         </CardContent>
       </Card>
     </div>

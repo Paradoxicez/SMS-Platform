@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Cpu, MemoryStick, HardDrive, Activity } from "lucide-react";
+import { Cpu, MemoryStick, HardDrive, Activity, Database } from "lucide-react";
+import { apiClient } from "@/lib/api-client";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -177,6 +178,110 @@ function BandwidthCard({
   );
 }
 
+// ─── Recording Storage Card ─────────────────────────────────────────────────────
+
+interface StorageUsage {
+  total_bytes: number;
+  total_count: number;
+  top_cameras: {
+    camera_id: string;
+    total_bytes: number;
+    recording_count: number;
+  }[];
+}
+
+function formatStorageBytes(bytes: number): string {
+  if (bytes === 0) return "0 B";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(1024));
+  const value = bytes / Math.pow(1024, i);
+  return `${value.toFixed(1)} ${units[i] ?? "B"}`;
+}
+
+function RecordingStorageCard() {
+  const [usage, setUsage] = useState<StorageUsage | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const fetchUsage = useCallback(async () => {
+    try {
+      const res = await apiClient.get<{ data: StorageUsage }>(
+        "/recording-config/storage-usage",
+      );
+      setUsage(res.data);
+    } catch {
+      setUsage(null);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchUsage();
+  }, [fetchUsage]);
+
+  if (loading) {
+    return (
+      <Card className="h-[70px] animate-pulse bg-muted/50" />
+    );
+  }
+
+  if (!usage) {
+    return (
+      <Card className="relative overflow-hidden" style={{ borderColor: "#64748b22" }}>
+        <CardContent className="px-4 py-3">
+          <div className="flex items-center gap-2 mb-1">
+            <Database className="size-4 text-muted-foreground" />
+            <span className="text-sm font-medium">Recordings</span>
+          </div>
+          <span className="text-xs text-muted-foreground">Unavailable</span>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Estimate a reasonable cap for the progress bar (1 TB default)
+  const capBytes = 1_099_511_627_776;
+  const percent = Math.min(Math.round((usage.total_bytes / capBytes) * 100), 100);
+  const color = getStatusColor(percent);
+
+  return (
+    <Card
+      className="relative overflow-hidden transition-all duration-500"
+      style={{ borderColor: `${color}22` }}
+    >
+      <CardContent className="px-4 py-3">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-1">
+          <div className="flex items-center gap-2">
+            <Database className="size-4 text-muted-foreground" />
+            <span className="text-sm font-medium">Recordings</span>
+          </div>
+          <span className="text-xs text-muted-foreground">
+            {usage.total_count.toLocaleString()} files
+          </span>
+        </div>
+
+        {/* Number + progress */}
+        <div className="flex items-center gap-3">
+          <span className="text-xl font-bold shrink-0 tabular-nums" style={{ color }}>
+            {formatStorageBytes(usage.total_bytes)}
+          </span>
+          <div className="relative h-2 w-full rounded-full bg-muted overflow-hidden flex-1">
+            <div
+              className="h-full rounded-full transition-all duration-700 ease-out"
+              style={{
+                width: `${Math.max(percent, 2)}%`,
+                background: `linear-gradient(90deg, ${color}88, ${color})`,
+                boxShadow: `0 0 6px ${color}44`,
+              }}
+            />
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 // ─── Main Component with SSE ───────────────────────────────────────────────────
 
 const MAX_POINTS = 60;
@@ -282,7 +387,7 @@ export function SystemResources() {
           title={connected ? "Live" : "Reconnecting..."}
         />
       </div>
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         <MetricCard
           icon={Cpu}
           label="CPU"
@@ -306,6 +411,7 @@ export function SystemResources() {
           currentIn={current.bwIn}
           currentOut={current.bwOut}
         />
+        <RecordingStorageCard />
       </div>
     </div>
   );
