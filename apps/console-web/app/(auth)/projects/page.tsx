@@ -28,6 +28,9 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import {
@@ -575,9 +578,19 @@ function ProjectsTable({
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onClick={() => openEdit(p)}>Edit</DropdownMenuItem>
-                        <DropdownMenuItem className="whitespace-nowrap" onClick={() => setRecordingSettingsProject({ id: p.id, name: p.name })}>
-                          Recording Settings
-                        </DropdownMenuItem>
+                        <DropdownMenuSub>
+                          <DropdownMenuSubTrigger className="whitespace-nowrap">
+                            Recording
+                          </DropdownMenuSubTrigger>
+                          <DropdownMenuSubContent>
+                            <DropdownMenuItem
+                              className="whitespace-nowrap"
+                              onClick={() => setRecordingSettingsProject({ id: p.id, name: p.name })}
+                            >
+                              Settings
+                            </DropdownMenuItem>
+                          </DropdownMenuSubContent>
+                        </DropdownMenuSub>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem className="text-red-600" onClick={() => handleDelete(p)}>
                           Delete
@@ -798,9 +811,19 @@ function SitesTable({
                         >
                           Edit
                         </DropdownMenuItem>
-                        <DropdownMenuItem className="whitespace-nowrap" onClick={() => setRecordingSettingsSite({ id: site.id, name: site.name })}>
-                          Recording Settings
-                        </DropdownMenuItem>
+                        <DropdownMenuSub>
+                          <DropdownMenuSubTrigger className="whitespace-nowrap">
+                            Recording
+                          </DropdownMenuSubTrigger>
+                          <DropdownMenuSubContent>
+                            <DropdownMenuItem
+                              className="whitespace-nowrap"
+                              onClick={() => setRecordingSettingsSite({ id: site.id, name: site.name })}
+                            >
+                              Settings
+                            </DropdownMenuItem>
+                          </DropdownMenuSubContent>
+                        </DropdownMenuSub>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
                           className="text-red-600"

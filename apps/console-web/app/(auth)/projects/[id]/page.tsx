@@ -25,6 +25,10 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { MoreHorizontal, MapPin } from "lucide-react"
@@ -263,9 +267,20 @@ export default function ProjectDetailPage() {
                           <DropdownMenuItem asChild>
                             <a href={`/sites/${site.id}`}>View Details</a>
                           </DropdownMenuItem>
-                          <DropdownMenuItem className="whitespace-nowrap" onClick={() => setRecordingSettingsSite({ id: site.id, name: site.name })}>
-                            Recording Settings
-                          </DropdownMenuItem>
+                          <DropdownMenuSub>
+                            <DropdownMenuSubTrigger className="whitespace-nowrap">
+                              Recording
+                            </DropdownMenuSubTrigger>
+                            <DropdownMenuSubContent>
+                              <DropdownMenuItem
+                                className="whitespace-nowrap"
+                                onClick={() => setRecordingSettingsSite({ id: site.id, name: site.name })}
+                              >
+                                Settings
+                              </DropdownMenuItem>
+                            </DropdownMenuSubContent>
+                          </DropdownMenuSub>
+                          <DropdownMenuSeparator />
                           <DropdownMenuItem
                             className="text-red-600"
                             onClick={() => handleDeleteSite(site)}

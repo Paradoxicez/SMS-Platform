@@ -25,12 +25,13 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Camera as CameraIcon, Upload, MoreHorizontal, CircleDot } from "lucide-react";
+import { Camera as CameraIcon, Upload, MoreHorizontal } from "lucide-react";
 import { RecBadge } from "@/components/cameras/rec-badge";
 import { toast } from "sonner";
 import type { Camera } from "@repo/types";
@@ -715,19 +716,19 @@ function CamerasPage() {
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem
                           onClick={() => {
-                            setSelectedCamera(camera);
-                            setSheetOpen(true);
-                          }}
-                        >
-                          View Details
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => {
                             setEditCamera(camera);
                             setEditDialogOpen(true);
                           }}
                         >
                           Edit
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => {
+                            setSelectedCamera(camera);
+                            setSheetOpen(true);
+                          }}
+                        >
+                          View Details
                         </DropdownMenuItem>
                         {camera.health_status === "stopped" ||
                         camera.health_status === "offline" ? (
@@ -770,19 +771,26 @@ function CamerasPage() {
                             )}
                           </DropdownMenuSubContent>
                         </DropdownMenuSub>
-                        <DropdownMenuItem
-                          className="whitespace-nowrap"
-                          onClick={() => handleToggleRecording(camera)}
-                        >
-                          <CircleDot className="mr-2 size-4 text-red-500" />
-                          {((camera as any).tags as string[] ?? []).includes("__recording_enabled") ? "Stop Recording" : "Start Recording"}
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          className="whitespace-nowrap"
-                          onClick={() => setRecordingSettingsCamera({ id: camera.id, name: camera.name })}
-                        >
-                          Recording Settings
-                        </DropdownMenuItem>
+                        <DropdownMenuSub>
+                          <DropdownMenuSubTrigger className="whitespace-nowrap">
+                            Recording
+                          </DropdownMenuSubTrigger>
+                          <DropdownMenuSubContent>
+                            <DropdownMenuItem
+                              className="whitespace-nowrap"
+                              onClick={() => handleToggleRecording(camera)}
+                            >
+                              {((camera as any).tags as string[] ?? []).includes("__recording_enabled") ? "Stop Recording" : "Start Recording"}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="whitespace-nowrap"
+                              onClick={() => setRecordingSettingsCamera({ id: camera.id, name: camera.name })}
+                            >
+                              Settings
+                            </DropdownMenuItem>
+                          </DropdownMenuSubContent>
+                        </DropdownMenuSub>
+                        <DropdownMenuSeparator />
                         <DropdownMenuItem
                           className="text-red-600"
                           onClick={() => handleDeleteCamera(camera.id)}
