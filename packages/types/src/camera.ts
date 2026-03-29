@@ -59,6 +59,7 @@ export const updateCameraSchema = z.object({
   tags: z.array(z.string()).optional(),
   map_visible: z.boolean().optional(),
   policy_id: z.string().uuid().nullable().optional(),
+  profile_id: z.string().uuid().nullable().optional(),
   version: z.number().int(),
 });
 

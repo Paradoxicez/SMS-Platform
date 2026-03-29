@@ -398,8 +398,11 @@ export class ApiClient {
     cameraId: string,
     profileId: string,
   ): Promise<SuccessEnvelope<Camera>> {
+    // Fetch current camera to get version for optimistic concurrency
+    const current = await this.getCamera(cameraId);
     return this.patch<SuccessEnvelope<Camera>>(`/cameras/${cameraId}`, {
       profile_id: profileId,
+      version: (current.data as any).version ?? 1,
     });
   }
 

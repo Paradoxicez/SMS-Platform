@@ -246,9 +246,10 @@ function CamerasPage() {
   const handleAssignProfile = async (cameraId: string, profileId: string) => {
     try {
       await apiClient.assignProfileToCamera(cameraId, profileId);
+      toast.success("Profile assigned successfully");
       await fetchCameras();
-    } catch {
-      // Error handled by api client
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to assign profile");
     }
   };
 
@@ -753,17 +754,22 @@ function CamerasPage() {
                             Assign Profile
                           </DropdownMenuSubTrigger>
                           <DropdownMenuSubContent>
-                            {profiles.map((profile) => (
-                              <DropdownMenuItem
-                                key={profile.id}
-                                onClick={() =>
-                                  handleAssignProfile(camera.id, profile.id)
-                                }
-                              >
-                                {profile.name}
-                                {profile.is_default && " (Default)"}
-                              </DropdownMenuItem>
-                            ))}
+                            {profiles.map((profile) => {
+                              const isActive = (camera as any).profile_id === profile.id;
+                              return (
+                                <DropdownMenuItem
+                                  key={profile.id}
+                                  className={isActive ? "bg-accent font-medium" : ""}
+                                  onClick={() =>
+                                    handleAssignProfile(camera.id, profile.id)
+                                  }
+                                >
+                                  {isActive && <span className="mr-1.5">✓</span>}
+                                  {profile.name}
+                                  {profile.is_default && " (Default)"}
+                                </DropdownMenuItem>
+                              );
+                            })}
                             {profiles.length === 0 && (
                               <DropdownMenuItem disabled>
                                 No profiles available
