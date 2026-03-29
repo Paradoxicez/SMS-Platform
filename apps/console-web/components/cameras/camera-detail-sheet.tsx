@@ -17,7 +17,7 @@ import type { Camera } from "@repo/types";
 import { formatDateTime } from "@/lib/format-date";
 import { apiClient, type CameraHealthStatus } from "../../lib/api-client";
 import { HlsPlayer } from "@/components/player/hls-player";
-import { VideoOff, Code2, CircleDot, Settings2 } from "lucide-react";
+import { VideoOff, Code2, Settings2 } from "lucide-react";
 import { EmbedCodeDialog } from "./embed-code-dialog";
 import { RecordingSettingsDialog } from "@/components/recordings/recording-settings-dialog";
 import { RecBadge } from "@/components/cameras/rec-badge";
@@ -183,6 +183,7 @@ export function CameraDetailSheet({
         : `/cameras/${camera.id}/recording/enable`;
       await apiClient.post(endpoint, {});
       setIsRecording(!isRecording);
+      _onUpdated?.();
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to toggle recording";
       console.error("Recording toggle error:", message);
@@ -378,29 +379,20 @@ export function CameraDetailSheet({
                           Stop Stream
                         </Button>
                       )}
-                      {isRecording ? (
-                        <Button
-                          variant="destructive"
-                          size="icon"
-                          className="shrink-0"
-                          onClick={handleRecordingClick}
-                          disabled={recordingLoading}
-                          title="Stop Recording"
-                        >
-                          <CircleDot className="size-4" />
-                        </Button>
-                      ) : (
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          className="shrink-0"
-                          onClick={handleRecordingClick}
-                          disabled={recordingLoading}
-                          title="Record"
-                        >
-                          <CircleDot className="size-4 text-red-500" />
-                        </Button>
-                      )}
+                      <button
+                        className="shrink-0 inline-flex items-center gap-1.5 rounded-md bg-neutral-800 px-2.5 h-9 text-white text-xs font-semibold hover:bg-neutral-700 transition-colors disabled:opacity-50"
+                        onClick={handleRecordingClick}
+                        disabled={recordingLoading}
+                        title={isRecording ? "Stop Recording" : "Start Recording"}
+                      >
+                        <span className="relative flex h-3 w-3">
+                          {isRecording && (
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-75" />
+                          )}
+                          <span className="relative inline-flex h-3 w-3 rounded-full bg-red-500" />
+                        </span>
+                        {isRecording && "REC"}
+                      </button>
                       <Button
                         variant="outline"
                         size="icon"
