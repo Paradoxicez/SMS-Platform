@@ -216,6 +216,13 @@ recordingsRouter.put(
     if (body.enabled !== undefined) mapped.enabled = body.enabled;
 
     const result = await upsertConfig(tenantId, scopeType, scopeId, mapped);
+
+    // Sync config to MediaMTX for affected cameras (fire and forget)
+    const { syncConfigToMediaMTX } = await import("../services/recordings");
+    syncConfigToMediaMTX(tenantId, scopeType, scopeId).catch((err) => {
+      console.error("Failed to sync config to MediaMTX:", err);
+    });
+
     return c.json({ data: result });
   },
 );

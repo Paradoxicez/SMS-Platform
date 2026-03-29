@@ -126,6 +126,78 @@ export async function disableRecording(cameraId: string, tenantId: string) {
   return { camera_id: cameraId, recording_enabled: false };
 }
 
+// ─── Sync Config to MediaMTX ────────────────────────────────────────────────
+
+/**
+ * Sync recording config to MediaMTX for affected cameras.
+ * Called after saving recording config (global/site/project/camera scope).
+ *
+ * For camera scope: update that camera's MediaMTX path.
+ * For global/site/project: update all cameras with __recording_enabled tag.
+ */
+export async function syncConfigToMediaMTX(
+  tenantId: string,
+  scopeType: string,
+  scopeId?: string,
+): Promise<{ synced: number }> {
+  // Find cameras to update
+  let cameraIds: string[] = [];
+
+  if (scopeType === "camera" && scopeId) {
+    cameraIds = [scopeId];
+  } else {
+    // For global/site/project: find all cameras with recording enabled
+    const allCameras = await withTenantContext(tenantId, async (tx) => {
+      return tx.select({ id: cameras.id, tags: cameras.tags }).from(cameras).where(eq(cameras.tenantId, tenantId));
+    });
+    cameraIds = allCameras
+      .filter((c) => ((c.tags as string[]) ?? []).includes("__recording_enabled"))
+      .map((c) => c.id);
+  }
+
+  let synced = 0;
+
+  for (const cameraId of cameraIds) {
+    const config = await resolveEffectiveConfig(tenantId, cameraId);
+
+    const pathName = `cam-${cameraId}`;
+    const retentionHours = config.retentionDays * 24;
+    const retentionStr = `${retentionHours}h0m0s`; // MediaMTX Go duration format
+
+    try {
+      await mediamtxFetch(`/v3/config/paths/patch/${pathName}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          record: config.enabled,
+          recordFormat: "fmp4", // MediaMTX only supports fmp4
+          recordDeleteAfter: retentionStr,
+          recordPath: `./recordings/%path/%Y-%m-%d_%H-%M-%S-%f`,
+        }),
+      });
+      synced++;
+    } catch (err) {
+      console.warn(JSON.stringify({
+        level: "warn",
+        service: "recordings",
+        message: "Failed to sync config to MediaMTX",
+        cameraId,
+        error: err instanceof Error ? err.message : String(err),
+      }));
+    }
+  }
+
+  console.log(JSON.stringify({
+    level: "info",
+    service: "recordings",
+    message: `Synced recording config to MediaMTX for ${synced} camera(s)`,
+    scopeType,
+    scopeId,
+  }));
+
+  return { synced };
+}
+
 // ─── Event-Based Recording Trigger ──────────────────────────────────────────
 
 export interface EventRecordingTrigger {
