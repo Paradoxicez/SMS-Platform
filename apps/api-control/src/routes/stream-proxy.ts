@@ -42,12 +42,17 @@ streamProxyRouter.get("/stream/:token/*", async (c) => {
 
   const secConfig = await getStreamSecurityConfig(session.tenant_id);
 
-  // 4. Proxy to MediaMTX
-  const hlsPath = `/cam-${decoded.cameraId}-hls${path || "/index.m3u8"}`;
-  const upstreamUrl = `${ORIGIN_BASE_URL}${hlsPath}`;
+  // 4. Proxy to MediaMTX — try -hls path first (transcoded), fallback to original
+  const suffix = path || "/index.m3u8";
+  let upstreamUrl = `${ORIGIN_BASE_URL}/cam-${decoded.cameraId}-hls${suffix}`;
 
   try {
-    const upstream = await fetch(upstreamUrl);
+    let upstream = await fetch(upstreamUrl);
+    if (!upstream.ok) {
+      // Fallback: try original path (no -hls suffix)
+      upstreamUrl = `${ORIGIN_BASE_URL}/cam-${decoded.cameraId}${suffix}`;
+      upstream = await fetch(upstreamUrl);
+    }
     if (!upstream.ok) {
       return c.json({ error: { code: "UPSTREAM_ERROR", message: "Stream not available" } }, upstream.status as 400 | 401 | 403 | 404 | 500 | 502 | 503 | 504);
     }

@@ -32,7 +32,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Camera as CameraIcon, Upload, MoreHorizontal } from "lucide-react";
-import { RecBadge } from "@/components/cameras/rec-badge";
 import { CameraStatusIcons } from "@/components/cameras/camera-status-icons";
 import { toast } from "sonner";
 import type { Camera } from "@repo/types";
@@ -49,47 +48,6 @@ import { SortableTableHead, useTableSort } from "@/components/ui/sortable-table-
 import { useCameraStatusStream } from "../../../hooks/use-camera-status-stream";
 
 type HealthStatus = Camera["health_status"];
-
-function StatusBadge({ status }: { status: HealthStatus }) {
-  switch (status) {
-    case "online":
-      return (
-        <Badge className="bg-green-100 text-green-700 hover:bg-green-200">
-          Online
-        </Badge>
-      );
-    case "offline":
-      return <Badge variant="destructive">Offline</Badge>;
-    case "degraded":
-      return (
-        <Badge className="bg-yellow-100 text-yellow-700 hover:bg-yellow-200">
-          Degraded
-        </Badge>
-      );
-    case "connecting":
-      return (
-        <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-200">
-          Connecting
-        </Badge>
-      );
-    case "reconnecting":
-      return (
-        <Badge className="bg-orange-100 text-orange-700 hover:bg-orange-200">
-          Reconnecting
-        </Badge>
-      );
-    case "stopping":
-      return (
-        <Badge className="bg-orange-100 text-orange-700 hover:bg-orange-200 animate-pulse">
-          Stopping
-        </Badge>
-      );
-    case "stopped":
-      return <Badge variant="secondary">Stopped</Badge>;
-    default:
-      return <Badge variant="outline">{status}</Badge>;
-  }
-}
 
 export default function CamerasPageWrapper() {
   return (
