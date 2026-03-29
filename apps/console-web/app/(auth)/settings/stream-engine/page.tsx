@@ -352,12 +352,10 @@ export default function StreamEngineSettingsPage() {
         resolution: "original",
       });
 
+      setConfigVersion(res.data.version);
+      toast.success("Configuration saved successfully");
       if (res.data.changed) {
-        setConfigVersion(res.data.version);
-        toast.success("Configuration saved and applied to stream engine");
         fetchHistory();
-      } else {
-        toast.info("No changes detected");
       }
     } catch (err) {
       const msg =
