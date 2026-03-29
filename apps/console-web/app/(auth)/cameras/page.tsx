@@ -109,6 +109,7 @@ function CamerasPage() {
   const [loading, setLoading] = useState(true);
   const { sortKey, sortDirection, handleSort, sortData } = useTableSort();
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [recordingFilter, setRecordingFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [siteFilter, setSiteFilter] = useState<string>("all");
   const [tagFilter, setTagFilter] = useState<string>(tagParam ?? "all");
@@ -233,6 +234,17 @@ function CamerasPage() {
         filtered = filtered.filter((c: any) => projectSiteIds.has(c.site_id));
       }
 
+      // Client-side recording filter
+      if (recordingFilter === "recording") {
+        filtered = filtered.filter((c: any) =>
+          ((c.tags as string[]) ?? []).includes("__recording_enabled"),
+        );
+      } else if (recordingFilter === "not_recording") {
+        filtered = filtered.filter((c: any) =>
+          !((c.tags as string[]) ?? []).includes("__recording_enabled"),
+        );
+      }
+
       setCameras(filtered);
       setTotalPages(response.pagination?.total_pages ?? 1);
       setTotal(response.pagination?.total ?? 0);
@@ -244,7 +256,7 @@ function CamerasPage() {
       setLoading(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [statusFilter, searchQuery, siteFilter, tagFilter, page, projectFilter]);
+  }, [statusFilter, searchQuery, siteFilter, tagFilter, page, projectFilter, recordingFilter]);
 
   useEffect(() => {
     fetchCameras();
@@ -501,6 +513,17 @@ function CamerasPage() {
           </SelectContent>
         </Select>
 
+        <Select value={recordingFilter} onValueChange={setRecordingFilter}>
+          <SelectTrigger className="w-[150px]">
+            <SelectValue placeholder="Recording" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All</SelectItem>
+            <SelectItem value="recording">Recording</SelectItem>
+            <SelectItem value="not_recording">Not Recording</SelectItem>
+          </SelectContent>
+        </Select>
+
         <Select
           value={projectFilter}
           onValueChange={(v) => {
@@ -597,7 +620,7 @@ function CamerasPage() {
           <div className="flex size-12 items-center justify-center rounded-full bg-muted">
             <CameraIcon className="size-6 text-muted-foreground" />
           </div>
-          {statusFilter !== "all" || searchQuery || siteFilter !== "all" || projectFilter !== "all" ? (
+          {statusFilter !== "all" || recordingFilter !== "all" || searchQuery || siteFilter !== "all" || projectFilter !== "all" ? (
             <>
               <h3 className="mt-4 text-lg font-semibold">No cameras found</h3>
               <p className="mt-1 text-sm text-muted-foreground">
@@ -608,6 +631,7 @@ function CamerasPage() {
                 className="mt-4"
                 onClick={() => {
                   setStatusFilter("all");
+                  setRecordingFilter("all");
                   setSearchQuery("");
                   setSiteFilter("all");
                   setProjectFilter("all");
