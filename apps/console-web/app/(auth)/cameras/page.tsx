@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Camera as CameraIcon, Upload, MoreHorizontal } from "lucide-react";
 import { RecBadge } from "@/components/cameras/rec-badge";
+import { CameraStatusIcons } from "@/components/cameras/camera-status-icons";
 import { toast } from "sonner";
 import type { Camera } from "@repo/types";
 import { apiClient, type StreamProfile } from "../../../lib/api-client";
@@ -145,11 +146,17 @@ function CamerasPage() {
   // Real-time camera status updates via SSE
   useCameraStatusStream((event) => {
     setCameras((prev) =>
-      prev.map((cam) =>
-        cam.id === event.camera_id
-          ? { ...cam, health_status: event.new_state as HealthStatus }
-          : cam,
-      ),
+      prev.map((cam) => {
+        if (cam.id !== event.camera_id) return cam;
+        const updated: any = { ...cam, health_status: event.new_state as HealthStatus };
+        if (event.is_recording !== undefined) {
+          // Update tags to reflect recording state
+          const tags = ((updated.tags as string[]) ?? []).filter((t: string) => t !== "__recording_enabled");
+          if (event.is_recording) tags.push("__recording_enabled");
+          updated.tags = tags;
+        }
+        return updated;
+      }),
     );
   });
 
@@ -635,7 +642,6 @@ function CamerasPage() {
                 <SortableTableHead sortKey="name" currentSortKey={sortKey} currentDirection={sortDirection} onSort={handleSort}>Name</SortableTableHead>
                 <SortableTableHead sortKey="site" currentSortKey={sortKey} currentDirection={sortDirection} onSort={handleSort}>Site</SortableTableHead>
                 <SortableTableHead sortKey="status" currentSortKey={sortKey} currentDirection={sortDirection} onSort={handleSort}>Status</SortableTableHead>
-                <TableHead className="w-8" />
                 <TableHead>RTSP URL</TableHead>
                 <TableHead>Profile</TableHead>
                 <TableHead>Tags</TableHead>
@@ -675,12 +681,10 @@ function CamerasPage() {
                     </span>
                   </TableCell>
                   <TableCell>
-                    <StatusBadge status={camera.health_status} />
-                  </TableCell>
-                  <TableCell>
-                    {((camera as any).tags as string[] ?? []).includes("__recording_enabled") ? (
-                      <RecBadge />
-                    ) : null}
+                    <CameraStatusIcons
+                      healthStatus={camera.health_status}
+                      isRecording={((camera as any).tags as string[] ?? []).includes("__recording_enabled")}
+                    />
                   </TableCell>
                   <TableCell>
                     <span className="text-sm text-muted-foreground">

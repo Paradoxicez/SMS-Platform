@@ -8,6 +8,7 @@ export interface StatusChangeEvent {
   camera_id: string;
   previous_state: string;
   new_state: string;
+  is_recording?: boolean;
   timestamp: string;
 }
 
