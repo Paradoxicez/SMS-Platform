@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import {
   Select,
   SelectContent,
@@ -15,7 +14,6 @@ import { DateRangePicker, type DateRange } from "@/components/recordings/date-ra
 import { RecordingCard } from "@/components/recordings/recording-card"
 import { RecordingTable } from "@/components/recordings/recording-table"
 import { BulkActions } from "@/components/recordings/bulk-actions"
-import { RecordingSettingsTab } from "@/components/recordings/settings-tab"
 import { apiClient } from "@/lib/api-client"
 import { toast } from "sonner"
 import type { Recording } from "@/components/recordings/types"
@@ -167,13 +165,7 @@ export default function RecordingsPage() {
         </p>
       </div>
 
-      <Tabs defaultValue="browse">
-        <TabsList>
-          <TabsTrigger value="browse">Browse</TabsTrigger>
-          <TabsTrigger value="settings">Settings</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="browse" className="space-y-4">
+      <div className="space-y-4">
           {/* Filters bar */}
           <div className="flex flex-wrap items-center gap-3">
             <Select value={selectedCamera} onValueChange={setSelectedCamera}>
@@ -256,12 +248,7 @@ export default function RecordingsPage() {
             onDelete={handleBulkDelete}
             onDeselectAll={handleDeselectAll}
           />
-        </TabsContent>
-
-        <TabsContent value="settings">
-          <RecordingSettingsTab />
-        </TabsContent>
-      </Tabs>
+      </div>
     </div>
   )
 }

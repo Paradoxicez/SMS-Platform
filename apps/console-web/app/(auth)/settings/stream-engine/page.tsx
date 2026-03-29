@@ -110,6 +110,12 @@ export default function StreamEngineSettingsPage() {
   const [cdnEnabled, setCdnEnabled] = useState(false);
   const [cdnOriginUrl, setCdnOriginUrl] = useState("");
 
+  // Recording state
+  const [recordingMode, setRecordingMode] = useState("continuous");
+  const [retentionDays, setRetentionDays] = useState("30");
+  const [autoPurge, setAutoPurge] = useState(true);
+  const [storagePath, setStoragePath] = useState("/recordings");
+
   // Stream Log state
   const [logLevel, setLogLevel] = useState("info");
   const [logs, setLogs] = useState<LogEntry[]>([]);
@@ -155,6 +161,25 @@ export default function StreamEngineSettingsPage() {
       if (c.cdnOriginUrl) setCdnOriginUrl(c.cdnOriginUrl as string);
     } catch {
       toast.error("Failed to fetch stream engine config");
+    }
+
+    // Fetch recording config
+    try {
+      const recRes = await apiClient.get<{
+        data: {
+          recording_mode?: string;
+          retention_days?: number;
+          auto_purge?: boolean;
+          storage_path?: string;
+        };
+      }>("/recording-config/global");
+      const rc = recRes.data;
+      if (rc.recording_mode) setRecordingMode(rc.recording_mode);
+      if (rc.retention_days !== undefined) setRetentionDays(String(rc.retention_days));
+      if (rc.auto_purge !== undefined) setAutoPurge(rc.auto_purge);
+      if (rc.storage_path) setStoragePath(rc.storage_path);
+    } catch {
+      // Use defaults on error
     }
   }
 
@@ -302,6 +327,17 @@ export default function StreamEngineSettingsPage() {
         },
         version: configVersion,
       });
+      // Save recording config
+      await apiClient.put("/recording-config/global", {
+        recording_mode: recordingMode,
+        retention_days: parseInt(retentionDays),
+        auto_purge: autoPurge,
+        storage_path: storagePath,
+        storage_type: "local",
+        format: "fmp4",
+        resolution: "original",
+      });
+
       if (res.data.changed) {
         setConfigVersion(res.data.version);
         toast.success("Configuration saved and applied to stream engine");
@@ -821,6 +857,111 @@ export default function StreamEngineSettingsPage() {
                   </div>
                 </div>
               )}
+            </CardContent>
+          </Card>
+
+          <Separator />
+
+          {/* Recording */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Recording</CardTitle>
+              <CardDescription>
+                Configure how cameras record and store footage.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="se-recording-mode">Recording Mode</Label>
+                <Select
+                  value={recordingMode}
+                  onValueChange={setRecordingMode}
+                >
+                  <SelectTrigger id="se-recording-mode" className="w-full sm:w-[280px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="continuous">
+                      <div>
+                        <span className="font-medium">Continuous</span>
+                        <span className="text-muted-foreground ml-2">— Record 24/7</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="scheduled">
+                      <div>
+                        <span className="font-medium">Scheduled</span>
+                        <span className="text-muted-foreground ml-2">— Time windows only</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="event_based">
+                      <div>
+                        <span className="font-medium">Event Based</span>
+                        <span className="text-muted-foreground ml-2">— On motion/trigger</span>
+                      </div>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  {recordingMode === "continuous" && "Cameras will record continuously around the clock. Best for high-security areas."}
+                  {recordingMode === "scheduled" && "Cameras will only record during configured time windows. Saves storage."}
+                  {recordingMode === "event_based" && "Cameras will start recording when triggered by events like motion detection."}
+                </p>
+              </div>
+
+              <Separator />
+
+              <div className="space-y-2">
+                <Label htmlFor="se-retention-days">Retention Period</Label>
+                <Select
+                  value={retentionDays}
+                  onValueChange={setRetentionDays}
+                >
+                  <SelectTrigger id="se-retention-days" className="w-full sm:w-[200px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="7">7 days</SelectItem>
+                    <SelectItem value="14">14 days</SelectItem>
+                    <SelectItem value="30">30 days</SelectItem>
+                    <SelectItem value="60">60 days</SelectItem>
+                    <SelectItem value="90">90 days</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Recordings older than this will be deleted. Limited by plan tier.
+                </p>
+              </div>
+
+              <Separator />
+
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label htmlFor="se-auto-purge">Auto-purge</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Automatically delete recordings and files when they exceed the retention period.
+                  </p>
+                </div>
+                <Switch
+                  id="se-auto-purge"
+                  checked={autoPurge}
+                  onCheckedChange={setAutoPurge}
+                />
+              </div>
+
+              <Separator />
+
+              <div className="space-y-2">
+                <Label htmlFor="se-storage-path">Storage Path</Label>
+                <Input
+                  id="se-storage-path"
+                  value={storagePath}
+                  onChange={(e) => setStoragePath(e.target.value)}
+                  placeholder="/recordings"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Directory path for recording files. Use NAS mount path (e.g. /mnt/nas/recordings) for network storage.
+                </p>
+              </div>
             </CardContent>
           </Card>
 
