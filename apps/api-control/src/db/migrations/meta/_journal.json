@@ -8,6 +8,13 @@
       "when": 1774425348257,
       "tag": "0000_strong_forgotten_one",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1774956000000,
+      "tag": "0001_recording_and_license",
+      "breakpoints": true
     }
   ]
 }
