@@ -519,7 +519,7 @@ function CamerasPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Recording</SelectItem>
-            <SelectItem value="recording">🔴 Recording</SelectItem>
+            <SelectItem value="recording">Recording</SelectItem>
             <SelectItem value="not_recording">Not Recording</SelectItem>
           </SelectContent>
         </Select>
