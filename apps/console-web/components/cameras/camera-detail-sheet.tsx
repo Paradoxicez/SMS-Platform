@@ -370,25 +370,6 @@ export function CameraDetailSheet({
                           Stop Stream
                         </Button>
                       )}
-                      {isRecording ? (
-                        <Button
-                          variant="destructive"
-                          onClick={handleRecordingClick}
-                          disabled={recordingLoading}
-                        >
-                          <CircleDot className="size-4 mr-1" />
-                          Stop Recording
-                        </Button>
-                      ) : (
-                        <Button
-                          variant="outline"
-                          onClick={handleRecordingClick}
-                          disabled={recordingLoading}
-                        >
-                          <CircleDot className="size-4 mr-1" />
-                          Record
-                        </Button>
-                      )}
                       <Button
                         variant="outline"
                         size="icon"
@@ -397,10 +378,35 @@ export function CameraDetailSheet({
                       >
                         <Code2 className="size-4" />
                       </Button>
+                    </div>
+                    <div className="flex gap-2">
+                      {isRecording ? (
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          className="flex-1"
+                          onClick={handleRecordingClick}
+                          disabled={recordingLoading}
+                        >
+                          <CircleDot className="size-3.5 mr-1" />
+                          Stop Recording
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex-1"
+                          onClick={handleRecordingClick}
+                          disabled={recordingLoading}
+                        >
+                          <CircleDot className="size-3.5 mr-1" />
+                          Record
+                        </Button>
+                      )}
                       <Button
                         variant="outline"
                         size="sm"
-                        className="whitespace-nowrap"
+                        className="flex-1 whitespace-nowrap"
                         onClick={() => setRecordingSettingsOpen(true)}
                       >
                         Recording Settings

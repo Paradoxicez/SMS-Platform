@@ -771,6 +771,7 @@ function CamerasPage() {
                           </DropdownMenuSubContent>
                         </DropdownMenuSub>
                         <DropdownMenuItem
+                          className="whitespace-nowrap"
                           onClick={() => handleToggleRecording(camera)}
                         >
                           <CircleDot className="mr-2 size-4" />
