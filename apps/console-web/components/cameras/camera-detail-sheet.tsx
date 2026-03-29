@@ -382,12 +382,17 @@ export function CameraDetailSheet({
                       <Button
                         variant="outline"
                         size="icon"
-                        className="shrink-0"
+                        className={`shrink-0 ${isRecording ? "border-red-500 bg-red-50 dark:bg-red-950/20" : ""}`}
                         onClick={handleRecordingClick}
                         disabled={recordingLoading}
                         title={isRecording ? "Stop Recording" : "Start Recording"}
                       >
-                        <span className="inline-flex h-3.5 w-3.5 rounded-full bg-red-500" />
+                        <span className="relative flex h-3.5 w-3.5">
+                          {isRecording && (
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-75" />
+                          )}
+                          <span className="relative inline-flex h-3.5 w-3.5 rounded-full bg-red-500" />
+                        </span>
                       </Button>
                       <Button
                         variant="outline"
