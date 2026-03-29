@@ -245,9 +245,16 @@ function CamerasPage() {
 
   const handleAssignProfile = async (cameraId: string, profileId: string) => {
     try {
-      await apiClient.assignProfileToCamera(cameraId, profileId);
+      const result = await apiClient.assignProfileToCamera(cameraId, profileId);
+      // Update camera in local state immediately for instant feedback
+      setCameras((prev) =>
+        prev.map((cam) =>
+          cam.id === cameraId
+            ? { ...cam, profile_id: profileId, version: (result.data as any).version } as any
+            : cam,
+        ),
+      );
       toast.success("Profile assigned successfully");
-      await fetchCameras();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to assign profile");
     }
