@@ -52,13 +52,5 @@ paths:
     recordFormat: fmp4
     recordDeleteAfter: 720h0m0s
     recordSegmentDuration: 1h0m0s
-    runOnRecordSegmentCreate: >
-      curl -s -X POST "http://host.docker.internal:3001/internal/recording/event"
-      -H "Content-Type: application/json"
-      -H "X-Internal-Secret: dev-secret"
-      -d "{\"type\":\"recording_start\",\"path\":\"$MTX_PATH\",\"file_path\":\"$MTX_RECORD_PATH\",\"start_time\":\"$(date -u +%%Y-%%m-%%dT%%H:%%M:%%SZ)\"}"
-    runOnRecordSegmentComplete: >
-      curl -s -X POST "http://host.docker.internal:3001/internal/recording/event"
-      -H "Content-Type: application/json"
-      -H "X-Internal-Secret: dev-secret"
-      -d "{\"type\":\"recording_end\",\"path\":\"$MTX_PATH\",\"file_path\":\"$MTX_RECORD_PATH\",\"start_time\":\"$(date -u +%%Y-%%m-%%dT%%H:%%M:%%SZ)\"}"
+    runOnRecordSegmentCreate: /on-record-segment.sh recording_start
+    runOnRecordSegmentComplete: /on-record-segment.sh recording_end
