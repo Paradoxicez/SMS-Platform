@@ -27,7 +27,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
-import { MoreHorizontal, Camera as CameraIcon, MapPin, RefreshCw, Video } from "lucide-react"
+import { MoreHorizontal, Camera as CameraIcon, MapPin, RefreshCw } from "lucide-react"
 import { BreadcrumbNav } from "@/components/breadcrumb-nav"
 import { SiteDialog } from "@/components/sites/site-dialog"
 import { RecordingSettingsDialog } from "@/components/recordings/recording-settings-dialog"
@@ -269,8 +269,7 @@ export default function SiteDetailPage() {
           </div>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setRecordingSettingsOpen(true)}>
-            <Video className="mr-1.5 size-4" />
+          <Button variant="outline" className="whitespace-nowrap" onClick={() => setRecordingSettingsOpen(true)}>
             Recording Settings
           </Button>
           <Button variant="outline" onClick={() => setEditOpen(true)}>

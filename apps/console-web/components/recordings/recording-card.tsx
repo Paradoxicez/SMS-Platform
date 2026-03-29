@@ -7,6 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { HlsPlayer } from "@/components/player/hls-player"
 import { formatDateTime } from "@/lib/format-date"
 import { Clock, HardDrive } from "lucide-react"
+import { RecBadge } from "@/components/cameras/rec-badge"
 import type { Recording } from "./types"
 
 interface RecordingCardProps {
@@ -120,6 +121,11 @@ export function RecordingCard({ recording, selected, onSelectChange }: Recording
             />
           </div>
         </div>
+
+        {/* REC badge for in-progress recordings */}
+        {!recording.end_time && (
+          <RecBadge className="absolute top-2 left-10 z-10" />
+        )}
 
         {/* Duration badge */}
         <div className="absolute bottom-2 right-2 rounded bg-black/70 px-1.5 py-0.5 text-xs font-medium text-white">

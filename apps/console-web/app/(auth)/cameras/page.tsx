@@ -30,7 +30,8 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Camera as CameraIcon, Upload, MoreHorizontal, CircleDot, Settings } from "lucide-react";
+import { Camera as CameraIcon, Upload, MoreHorizontal, CircleDot } from "lucide-react";
+import { RecBadge } from "@/components/cameras/rec-badge";
 import { toast } from "sonner";
 import type { Camera } from "@repo/types";
 import { apiClient, type StreamProfile } from "../../../lib/api-client";
@@ -666,10 +667,7 @@ function CamerasPage() {
                   </TableCell>
                   <TableCell>
                     {((camera as any).tags as string[] ?? []).includes("__recording_enabled") ? (
-                      <span className="relative flex h-3 w-3">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
-                      </span>
+                      <RecBadge />
                     ) : null}
                   </TableCell>
                   <TableCell>
@@ -708,15 +706,6 @@ function CamerasPage() {
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1">
-                    <Button
-                      variant={((camera as any).tags as string[] ?? []).includes("__recording_enabled") ? "destructive" : "outline"}
-                      size="icon"
-                      className="size-8"
-                      onClick={() => handleToggleRecording(camera)}
-                      title={((camera as any).tags as string[] ?? []).includes("__recording_enabled") ? "Disable recording" : "Enable recording"}
-                    >
-                      <CircleDot className="size-4" />
-                    </Button>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="icon" className="size-8">
@@ -782,9 +771,15 @@ function CamerasPage() {
                           </DropdownMenuSubContent>
                         </DropdownMenuSub>
                         <DropdownMenuItem
+                          onClick={() => handleToggleRecording(camera)}
+                        >
+                          <CircleDot className="mr-2 size-4" />
+                          {((camera as any).tags as string[] ?? []).includes("__recording_enabled") ? "Stop Recording" : "Start Recording"}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          className="whitespace-nowrap"
                           onClick={() => setRecordingSettingsCamera({ id: camera.id, name: camera.name })}
                         >
-                          <Settings className="mr-2 size-4" />
                           Recording Settings
                         </DropdownMenuItem>
                         <DropdownMenuItem

@@ -44,7 +44,6 @@ import {
   Plus,
   ChevronsLeft,
   ChevronsRight,
-  Video,
 } from "lucide-react"
 import { apiClient } from "@/lib/api-client"
 import { toast } from "sonner"
@@ -576,8 +575,7 @@ function ProjectsTable({
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onClick={() => openEdit(p)}>Edit</DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => setRecordingSettingsProject({ id: p.id, name: p.name })}>
-                          <Video className="mr-2 size-4" />
+                        <DropdownMenuItem className="whitespace-nowrap" onClick={() => setRecordingSettingsProject({ id: p.id, name: p.name })}>
                           Recording Settings
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
@@ -800,8 +798,7 @@ function SitesTable({
                         >
                           Edit
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => setRecordingSettingsSite({ id: site.id, name: site.name })}>
-                          <Video className="mr-2 size-4" />
+                        <DropdownMenuItem className="whitespace-nowrap" onClick={() => setRecordingSettingsSite({ id: site.id, name: site.name })}>
                           Recording Settings
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />

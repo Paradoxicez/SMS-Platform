@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
+import { RecBadge } from "@/components/cameras/rec-badge";
 import type { MapCamera } from "../../app/(public)/map/[projectKey]/page";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
@@ -140,11 +141,14 @@ export function CameraPinHover({ camera }: CameraPinHoverProps) {
           </div>
         )}
 
-        {/* Top-left: resolution */}
-        <div className="absolute top-2 left-2">
+        {/* Top-left: resolution or REC badge */}
+        <div className="absolute top-2 left-2 flex flex-col gap-1">
           <span className="rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white">
             720p
           </span>
+          {camera.tags?.includes("__recording_enabled") && (
+            <RecBadge />
+          )}
         </div>
 
         {/* Top-right: live/offline indicator */}

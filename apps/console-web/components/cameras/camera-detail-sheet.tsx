@@ -17,9 +17,10 @@ import type { Camera } from "@repo/types";
 import { formatDateTime } from "@/lib/format-date";
 import { apiClient, type CameraHealthStatus } from "../../lib/api-client";
 import { HlsPlayer } from "@/components/player/hls-player";
-import { VideoOff, Code2, CircleDot, Settings2 } from "lucide-react";
+import { VideoOff, Code2, CircleDot } from "lucide-react";
 import { EmbedCodeDialog } from "./embed-code-dialog";
 import { RecordingSettingsDialog } from "@/components/recordings/recording-settings-dialog";
+import { RecBadge } from "@/components/cameras/rec-badge";
 
 interface CameraDetailSheetProps {
   camera: Camera;
@@ -230,7 +231,8 @@ export function CameraDetailSheet({
           </SheetHeader>
 
           {/* Stream Preview */}
-          <div>
+          <div className="relative">
+            {isRecording && <RecBadge className="absolute top-2 left-2 z-10" />}
             {isOnline && playbackUrl ? (
               <HlsPlayer
                 src={playbackUrl}
@@ -397,11 +399,11 @@ export function CameraDetailSheet({
                       </Button>
                       <Button
                         variant="outline"
-                        size="icon"
+                        size="sm"
+                        className="whitespace-nowrap"
                         onClick={() => setRecordingSettingsOpen(true)}
-                        title="Recording Settings"
                       >
-                        <Settings2 className="size-4" />
+                        Recording Settings
                       </Button>
                     </div>
               </TabsContent>

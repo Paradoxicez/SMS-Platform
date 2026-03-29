@@ -27,7 +27,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { MoreHorizontal, MapPin, Video } from "lucide-react"
+import { MoreHorizontal, MapPin } from "lucide-react"
 import { BreadcrumbNav } from "@/components/breadcrumb-nav"
 import { SiteDialog } from "@/components/sites/site-dialog"
 import { RecordingSettingsDialog } from "@/components/recordings/recording-settings-dialog"
@@ -192,8 +192,7 @@ export default function ProjectDetailPage() {
           </div>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setRecordingSettingsOpen(true)}>
-            <Video className="mr-1.5 size-4" />
+          <Button variant="outline" className="whitespace-nowrap" onClick={() => setRecordingSettingsOpen(true)}>
             Recording Settings
           </Button>
         </div>
@@ -264,8 +263,7 @@ export default function ProjectDetailPage() {
                           <DropdownMenuItem asChild>
                             <a href={`/sites/${site.id}`}>View Details</a>
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => setRecordingSettingsSite({ id: site.id, name: site.name })}>
-                            <Video className="mr-2 size-4" />
+                          <DropdownMenuItem className="whitespace-nowrap" onClick={() => setRecordingSettingsSite({ id: site.id, name: site.name })}>
                             Recording Settings
                           </DropdownMenuItem>
                           <DropdownMenuItem
