@@ -166,7 +166,14 @@ export function CameraDetailSheet({
     }
   }, [open, camera, isOnline]);
 
-  const isRecording = ((camera.tags as string[]) ?? []).includes("__recording_enabled");
+  const [isRecording, setIsRecording] = useState(
+    ((camera.tags as string[]) ?? []).includes("__recording_enabled")
+  );
+
+  // Sync with prop changes
+  useEffect(() => {
+    setIsRecording(((camera.tags as string[]) ?? []).includes("__recording_enabled"));
+  }, [camera.tags]);
 
   async function handleRecordingClick() {
     setRecordingLoading(true);
@@ -175,6 +182,7 @@ export function CameraDetailSheet({
         ? `/cameras/${camera.id}/recording/disable`
         : `/cameras/${camera.id}/recording/enable`;
       await apiClient.post(endpoint, {});
+      setIsRecording(!isRecording);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to toggle recording";
       console.error("Recording toggle error:", message);
@@ -390,7 +398,7 @@ export function CameraDetailSheet({
                           disabled={recordingLoading}
                           title="Record"
                         >
-                          <CircleDot className="size-4" />
+                          <CircleDot className="size-4 text-red-500" />
                         </Button>
                       )}
                       <Button

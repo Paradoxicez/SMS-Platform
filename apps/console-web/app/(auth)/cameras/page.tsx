@@ -774,7 +774,7 @@ function CamerasPage() {
                           className="whitespace-nowrap"
                           onClick={() => handleToggleRecording(camera)}
                         >
-                          <CircleDot className="mr-2 size-4" />
+                          <CircleDot className="mr-2 size-4 text-red-500" />
                           {((camera as any).tags as string[] ?? []).includes("__recording_enabled") ? "Stop Recording" : "Start Recording"}
                         </DropdownMenuItem>
                         <DropdownMenuItem
