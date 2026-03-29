@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { Loader2, CheckCircle2, XCircle } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -45,6 +46,8 @@ export function EditCameraDialog({
   const [latitude, setLatitude] = useState("");
   const [longitude, setLongitude] = useState("");
   const [tags, setTags] = useState("");
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ success: boolean; error?: string; detail?: string } | null>(null);
 
   // Populate form when camera changes or dialog opens
   useEffect(() => {
@@ -66,7 +69,29 @@ export function EditCameraDialog({
         camera.tags ? (camera.tags as string[]).join(", ") : "",
       );
     }
+    setTestResult(null);
   }, [open, camera]);
+
+  const handleTestConnection = useCallback(async () => {
+    if (!streamUrl) return;
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const res = await apiClient.post<{ data: { success: boolean; error?: string; detail?: string } }>(
+        "/cameras/test-connection",
+        { url: streamUrl },
+      );
+      setTestResult(res.data);
+    } catch (err) {
+      setTestResult({
+        success: false,
+        error: "Test failed",
+        detail: err instanceof Error ? err.message : "Unknown error",
+      });
+    } finally {
+      setTesting(false);
+    }
+  }, [streamUrl]);
 
   // Fetch profiles on mount
   useEffect(() => {
@@ -170,16 +195,46 @@ export function EditCameraDialog({
 
           <div className="space-y-2">
             <Label htmlFor="editStreamUrl">Stream URL</Label>
-            <Input
-              id="editStreamUrl"
-              placeholder="rtsp://camera-ip:554/stream"
-              value={streamUrl}
-              onChange={(e) => setStreamUrl(e.target.value)}
-              className="font-mono text-sm"
-            />
-            <p className="text-xs text-muted-foreground">
-              Supports rtsp:// and srt:// protocols
-            </p>
+            <div className="flex gap-2">
+              <Input
+                id="editStreamUrl"
+                placeholder="rtsp://camera-ip:554/stream"
+                value={streamUrl}
+                onChange={(e) => {
+                  setStreamUrl(e.target.value);
+                  setTestResult(null);
+                }}
+                className="font-mono text-sm flex-1"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="shrink-0 whitespace-nowrap"
+                disabled={!streamUrl || testing}
+                onClick={handleTestConnection}
+              >
+                {testing ? (
+                  <><Loader2 className="size-3.5 mr-1 animate-spin" />Testing...</>
+                ) : (
+                  "Test Connection"
+                )}
+              </Button>
+            </div>
+            {testResult && (
+              <div className={`flex items-start gap-2 rounded-md p-2 text-xs ${testResult.success ? "bg-green-50 text-green-700 dark:bg-green-950/30 dark:text-green-400" : "bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-400"}`}>
+                {testResult.success ? <CheckCircle2 className="size-4 shrink-0 mt-0.5" /> : <XCircle className="size-4 shrink-0 mt-0.5" />}
+                <div>
+                  <p className="font-medium">{testResult.success ? "Connected successfully" : testResult.error}</p>
+                  {testResult.detail && <p className="mt-0.5 opacity-80">{testResult.detail}</p>}
+                </div>
+              </div>
+            )}
+            {!testResult && (
+              <p className="text-xs text-muted-foreground">
+                Supports rtsp:// and srt:// protocols
+              </p>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-4">

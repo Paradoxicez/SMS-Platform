@@ -774,4 +774,128 @@ camerasRouter.get(
   },
 );
 
+// POST /cameras/test-connection — test RTSP/SRT connection via MediaMTX temp path
+camerasRouter.post(
+  "/cameras/test-connection",
+  requireRole("admin", "operator"),
+  async (c) => {
+    const body = await c.req.json<{ url?: string }>();
+    const url = body.url;
+
+    if (!url || typeof url !== "string") {
+      return c.json(
+        { data: { success: false, error: "URL is required" } },
+        400,
+      );
+    }
+
+    if (!url.startsWith("rtsp://") && !url.startsWith("srt://")) {
+      return c.json({
+        data: {
+          success: false,
+          error: "Invalid URL",
+          detail: "Must start with rtsp:// or srt://",
+        },
+      });
+    }
+
+    const { mediamtxFetch } = await import("../lib/mediamtx-fetch");
+    const testPathName = `__test_${crypto.randomUUID().slice(0, 8)}`;
+
+    try {
+      // 1. Create temp path in MediaMTX
+      const addRes = await mediamtxFetch(`/v3/config/paths/add/${testPathName}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          source: url,
+          sourceOnDemand: false,
+        }),
+      });
+
+      if (!addRes.ok) {
+        return c.json({
+          data: { success: false, error: "Failed to create test path", detail: await addRes.text() },
+        });
+      }
+
+      // 2. Poll path status (wait up to 10s for connection)
+      let connected = false;
+      let tracks: string[] = [];
+      let codecInfo: unknown[] = [];
+      let errorMsg = "Connection timeout — host unreachable or firewall blocked";
+
+      for (let i = 0; i < 10; i++) {
+        await new Promise((r) => setTimeout(r, 1000));
+
+        const pathRes = await mediamtxFetch(`/v3/paths/get/${testPathName}`);
+        if (pathRes.ok) {
+          const pathData = await pathRes.json() as {
+            ready?: boolean;
+            tracks?: string[];
+            tracks2?: { codec?: string; codecProps?: { width?: number; height?: number } }[];
+            source?: { type?: string };
+          };
+
+          if (pathData.ready) {
+            connected = true;
+            tracks = pathData.tracks ?? [];
+            codecInfo = pathData.tracks2 ?? [];
+            break;
+          }
+        }
+      }
+
+      // 3. Cleanup: remove temp path
+      await mediamtxFetch(`/v3/config/paths/delete/${testPathName}`, {
+        method: "DELETE",
+      });
+
+      if (connected) {
+        // Build detail string from tracks
+        const details: string[] = [];
+        for (const track of codecInfo as { codec?: string; codecProps?: { width?: number; height?: number } }[]) {
+          if (track.codec && track.codecProps?.width) {
+            details.push(`${track.codec} ${track.codecProps.width}×${track.codecProps.height}`);
+          } else if (track.codec) {
+            details.push(track.codec);
+          }
+        }
+
+        return c.json({
+          data: {
+            success: true,
+            tracks,
+            detail: details.join(" · ") || tracks.join(", "),
+          },
+        });
+      }
+
+      // Check if auth error (common pattern)
+      if (url.includes("@")) {
+        errorMsg = "Connection timeout — check IP/port and ensure camera is reachable";
+      } else {
+        errorMsg = "Authentication may be required — include credentials in URL (rtsp://user:pass@host)";
+      }
+
+      return c.json({
+        data: { success: false, error: "Connection failed", detail: errorMsg },
+      });
+    } catch (err) {
+      // Cleanup on error
+      await mediamtxFetch(`/v3/config/paths/delete/${testPathName}`, {
+        method: "DELETE",
+      }).catch(() => {});
+
+      return c.json({
+        data: {
+          success: false,
+          error: "Connection test failed",
+          detail: err instanceof Error ? err.message : "Unknown error",
+        },
+      });
+    }
+  },
+);
+
 export { camerasRouter };

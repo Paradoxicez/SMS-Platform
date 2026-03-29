@@ -263,27 +263,30 @@ function CamerasPage() {
   const handleStartCamera = async (id: string) => {
     try {
       await apiClient.startCamera(id);
+      toast.success("Stream started — connecting to camera");
       await fetchCameras();
-    } catch {
-      // Error handled by api client
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to start stream — check RTSP URL and credentials");
     }
   };
 
   const handleStopCamera = async (id: string) => {
     try {
       await apiClient.stopCamera(id);
+      toast.success("Stream stopped");
       await fetchCameras();
-    } catch {
-      // Error handled by api client
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to stop stream");
     }
   };
 
   const handleDeleteCamera = async (id: string) => {
     try {
       await apiClient.deleteCamera(id);
+      toast.success("Camera deleted");
       await fetchCameras();
-    } catch {
-      // Error handled by api client
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to delete camera");
     }
   };
 
