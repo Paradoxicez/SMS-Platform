@@ -338,12 +338,7 @@ export function CameraDetailSheet({
 
                     <div className="grid grid-cols-[100px_1fr] gap-2 items-center">
                       <span className="text-sm font-medium text-muted-foreground">Profile</span>
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline">{profileName}</Badge>
-                        <Button variant="ghost" size="sm" asChild>
-                          <a href="/profiles">Change</a>
-                        </Button>
-                      </div>
+                      <Badge variant="outline">{profileName}</Badge>
                     </div>
                   </div>
 
