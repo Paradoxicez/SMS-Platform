@@ -151,10 +151,7 @@ function CamerasPage() {
         if (cam.id !== event.camera_id) return cam;
         const updated: any = { ...cam, health_status: event.new_state as HealthStatus };
         if (event.is_recording !== undefined) {
-          // Update tags to reflect recording state
-          const tags = ((updated.tags as string[]) ?? []).filter((t: string) => t !== "__recording_enabled");
-          if (event.is_recording) tags.push("__recording_enabled");
-          updated.tags = tags;
+          updated.recording_enabled = event.is_recording;
         }
         return updated;
       }),
@@ -236,13 +233,9 @@ function CamerasPage() {
 
       // Client-side recording filter
       if (recordingFilter === "recording") {
-        filtered = filtered.filter((c: any) =>
-          ((c.tags as string[]) ?? []).includes("__recording_enabled"),
-        );
+        filtered = filtered.filter((c: any) => (c as any).recording_enabled === true);
       } else if (recordingFilter === "not_recording") {
-        filtered = filtered.filter((c: any) =>
-          !((c.tags as string[]) ?? []).includes("__recording_enabled"),
-        );
+        filtered = filtered.filter((c: any) => (c as any).recording_enabled !== true);
       }
 
       setCameras(filtered);
@@ -310,7 +303,7 @@ function CamerasPage() {
   };
 
   const handleToggleRecording = async (camera: Camera) => {
-    const isRecording = ((camera as any).tags as string[] ?? []).includes("__recording_enabled");
+    const isRecording = (camera as any).recording_enabled === true;
     try {
       await apiClient.post(`/cameras/${camera.id}/recording/${isRecording ? "disable" : "enable"}`, {});
       toast.success(isRecording ? "Recording disabled" : "Recording enabled");
@@ -707,7 +700,7 @@ function CamerasPage() {
                   <TableCell>
                     <CameraStatusIcons
                       healthStatus={camera.health_status}
-                      isRecording={((camera as any).tags as string[] ?? []).includes("__recording_enabled")}
+                      isRecording={(camera as any).recording_enabled === true}
                     />
                   </TableCell>
                   <TableCell>
@@ -824,7 +817,7 @@ function CamerasPage() {
                               className="whitespace-nowrap"
                               onClick={() => handleToggleRecording(camera)}
                             >
-                              {((camera as any).tags as string[] ?? []).includes("__recording_enabled") ? "Stop Recording" : "Start Recording"}
+                              {(camera as any).recording_enabled === true ? "Stop Recording" : "Start Recording"}
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               className="whitespace-nowrap"

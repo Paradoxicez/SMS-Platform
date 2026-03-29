@@ -237,8 +237,7 @@ function RecordingDetailContent() {
     }
   }
 
-  const cameraTags = (camera?.tags as string[]) ?? [];
-  const isRecordingEnabled = cameraTags.includes("__recording_enabled");
+  const isRecordingEnabled = (camera as any)?.recording_enabled === true;
 
   const recordingStatusBadge = isRecordingEnabled ? (
     <Badge variant="secondary" className="gap-1 bg-red-100 text-red-700">

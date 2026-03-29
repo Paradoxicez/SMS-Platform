@@ -146,7 +146,7 @@ export function CameraPinHover({ camera }: CameraPinHoverProps) {
           <span className="rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white">
             720p
           </span>
-          {camera.tags?.includes("__recording_enabled") && (
+          {(camera as any).recording_enabled === true && (
             <RecBadge />
           )}
         </div>

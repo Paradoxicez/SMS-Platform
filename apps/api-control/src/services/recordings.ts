@@ -26,15 +26,11 @@ export async function enableRecording(
     throw new Error("Camera not found");
   }
 
-  const existingTags = (camera.tags as string[]) ?? [];
-  if (!existingTags.includes("__recording_enabled")) {
+  if (!camera.recordingEnabled) {
     await withTenantContext(tenantId, async (tx) => {
       await tx
         .update(cameras)
-        .set({
-          tags: [...existingTags, "__recording_enabled"],
-          updatedAt: new Date(),
-        })
+        .set({ recordingEnabled: true, updatedAt: new Date() })
         .where(eq(cameras.id, cameraId));
     });
   }
@@ -87,14 +83,10 @@ export async function disableRecording(cameraId: string, tenantId: string) {
     throw new Error("Camera not found");
   }
 
-  const tags = ((camera.tags as string[]) ?? []).filter(
-    (t) => t !== "__recording_enabled",
-  );
-
   await withTenantContext(tenantId, async (tx) => {
     await tx
       .update(cameras)
-      .set({ tags, updatedAt: new Date() })
+      .set({ recordingEnabled: false, updatedAt: new Date() })
       .where(eq(cameras.id, cameraId));
   });
 
@@ -133,7 +125,7 @@ export async function disableRecording(cameraId: string, tenantId: string) {
  * Called after saving recording config (global/site/project/camera scope).
  *
  * For camera scope: update that camera's MediaMTX path.
- * For global/site/project: update all cameras with __recording_enabled tag.
+ * For global/site/project: update all cameras with recording_enabled = true.
  */
 export async function syncConfigToMediaMTX(
   tenantId: string,
@@ -148,11 +140,9 @@ export async function syncConfigToMediaMTX(
   } else {
     // For global/site/project: find all cameras with recording enabled
     const allCameras = await withTenantContext(tenantId, async (tx) => {
-      return tx.select({ id: cameras.id, tags: cameras.tags }).from(cameras).where(eq(cameras.tenantId, tenantId));
+      return tx.select({ id: cameras.id }).from(cameras).where(and(eq(cameras.tenantId, tenantId), eq(cameras.recordingEnabled, true)));
     });
-    cameraIds = allCameras
-      .filter((c) => ((c.tags as string[]) ?? []).includes("__recording_enabled"))
-      .map((c) => c.id);
+    cameraIds = allCameras.map((c) => c.id);
   }
 
   let synced = 0;

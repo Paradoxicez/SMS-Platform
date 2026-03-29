@@ -167,13 +167,13 @@ export function CameraDetailSheet({
   }, [open, camera, isOnline]);
 
   const [isRecording, setIsRecording] = useState(
-    ((camera.tags as string[]) ?? []).includes("__recording_enabled")
+    (camera as any).recording_enabled === true
   );
 
   // Sync with prop changes
   useEffect(() => {
-    setIsRecording(((camera.tags as string[]) ?? []).includes("__recording_enabled"));
-  }, [camera.tags]);
+    setIsRecording((camera as any).recording_enabled === true);
+  }, [(camera as any).recording_enabled]);
 
   async function handleRecordingClick() {
     setRecordingLoading(true);

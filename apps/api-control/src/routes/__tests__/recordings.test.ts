@@ -12,6 +12,8 @@ vi.mock("../../services/recordings", () => ({
   disableRecording: (...args: unknown[]) => mockDisableRecording(...args),
   listRecordings: (...args: unknown[]) => mockListRecordings(...args),
   createVodSession: (...args: unknown[]) => mockCreateVodSession(...args),
+  deleteRecording: vi.fn().mockResolvedValue(undefined),
+  syncConfigToMediaMTX: vi.fn().mockResolvedValue({ synced: 0 }),
 }));
 
 const mockResolveConfig = vi.fn().mockResolvedValue({ mode: "continuous", enabled: true, inheritedFrom: "default" });

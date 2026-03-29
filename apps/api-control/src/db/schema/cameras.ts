@@ -39,6 +39,7 @@ export const cameras = pgTable("cameras", {
   lat: doublePrecision("lat"),
   lng: doublePrecision("lng"),
   tags: jsonb("tags").notNull().default([]),
+  recordingEnabled: boolean("recording_enabled").notNull().default(false),
   mapVisible: boolean("map_visible").notNull().default(false),
   healthStatus: healthStatusEnum("health_status").notNull().default("stopped"),
   policyId: uuid("policy_id").references(() => policies.id),
