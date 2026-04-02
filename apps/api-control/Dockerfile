@@ -28,6 +28,7 @@ COPY --from=builder --chown=nodejs:nodejs /app/package.json /app/pnpm-lock.yaml 
 COPY --from=builder --chown=nodejs:nodejs /app/packages/ packages/
 COPY --from=builder --chown=nodejs:nodejs /app/apps/api-control/package.json apps/api-control/
 COPY --from=builder --chown=nodejs:nodejs /app/apps/api-control/dist/ apps/api-control/dist/
+COPY --from=builder --chown=nodejs:nodejs /app/apps/api-control/src/db/migrations/ apps/api-control/dist/migrations/
 
 RUN pnpm install --frozen-lockfile --prod
 
