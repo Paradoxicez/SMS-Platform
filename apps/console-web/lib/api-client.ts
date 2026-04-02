@@ -71,6 +71,7 @@ export interface StreamProfile {
   output_codec: "h264" | "passthrough" | "copy";
   keyframe_interval: number;
   is_default: boolean;
+  version: number;
   camera_count: number;
   created_at: string;
   updated_at: string;
@@ -203,10 +204,11 @@ export class ApiClient {
     return this.handleResponse<T>(res);
   }
 
-  async delete<T>(path: string): Promise<T> {
+  async delete<T>(path: string, body?: unknown): Promise<T> {
     const res = await fetch(`${this.baseUrl}${path}`, {
       method: "DELETE",
       headers: await this.getHeaders(),
+      ...(body ? { body: JSON.stringify(body) } : {}),
     });
     return this.handleResponse<T>(res);
   }

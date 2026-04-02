@@ -4,7 +4,6 @@ import { recordings } from "../db/schema/recordings";
 import { cameras } from "../db/schema";
 import { randomUUID } from "node:crypto";
 import { getStorageProvider, type S3Config } from "../lib/recording-storage";
-import { isWithinSchedule, type ScheduleWindow } from "../lib/recording-schedule";
 import { resolveEffectiveConfig } from "./recording-config";
 import { mediamtxFetch } from "../lib/mediamtx-fetch";
 
@@ -42,11 +41,14 @@ export async function enableRecording(
     const retentionHours = config.retentionDays * 24;
     const segmentMinutes = config.segmentDurationMinutes ?? 60;
 
+    // Scheduled mode starts with record off — cron will toggle it
+    const shouldRecordNow = config.mode !== "scheduled";
+
     const mtxRes = await mediamtxFetch(`/v3/config/paths/patch/${pathName}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        record: true,
+        record: shouldRecordNow,
         recordPath: `./recordings/%path/%Y-%m-%d_%H-%M-%S-%f`,
         recordFormat: "fmp4",
         recordDeleteAfter: `${retentionHours}h0m0s`,
@@ -207,58 +209,6 @@ export async function syncConfigToMediaMTX(
   return { synced };
 }
 
-// ─── Event-Based Recording Trigger ──────────────────────────────────────────
-
-export interface EventRecordingTrigger {
-  camera_id: string;
-  tenant_id: string;
-  event_type: string; // "motion_detected", "person_detected", etc.
-  duration_seconds?: number; // How long to record (default: 60)
-  source?: string; // AI integration name
-}
-
-/**
- * Trigger recording for a camera based on an external event (e.g., motion detection).
- * Only works if the camera's recording mode is "event_based".
- * Returns the path that MediaMTX should record to.
- */
-export async function triggerEventRecording(
-  trigger: EventRecordingTrigger,
-): Promise<{ triggered: boolean; reason?: string; record_path?: string }> {
-  const config = await resolveEffectiveConfig(trigger.tenant_id, trigger.camera_id);
-
-  if (config.mode !== "event_based") {
-    return { triggered: false, reason: "Camera recording mode is not event_based" };
-  }
-
-  if (!config.enabled) {
-    return { triggered: false, reason: "Recording is disabled for this camera" };
-  }
-
-  const durationSec = trigger.duration_seconds ?? 60;
-  const recordPath = `${trigger.tenant_id}/${trigger.camera_id}/events/${Date.now()}`;
-
-  console.log(JSON.stringify({
-    level: "info",
-    service: "recordings",
-    message: "Event-based recording triggered",
-    cameraId: trigger.camera_id,
-    eventType: trigger.event_type,
-    durationSec,
-    source: trigger.source,
-    recordPath,
-  }));
-
-  // NOTE: In production, this would send a command to MediaMTX to start recording
-  // for the specified duration. The recording start/end events will flow back
-  // through the webhook (handleRecordingEvent) to populate the DB.
-
-  return {
-    triggered: true,
-    record_path: recordPath,
-  };
-}
-
 // ─── Recording Webhook (from MediaMTX) ─────────────────────────────────────
 
 export interface RecordingEvent {
@@ -316,21 +266,6 @@ export async function handleRecordingEvent(event: RecordingEvent): Promise<void>
   const config = await resolveEffectiveConfig(tenantId, cameraId);
 
   if (event.type === "recording_start") {
-    // Check schedule — skip if mode=scheduled and outside time window
-    if (config.mode === "scheduled") {
-      const schedule = config.schedule as ScheduleWindow[] | null;
-      if (!isWithinSchedule(schedule)) {
-        console.log(JSON.stringify({
-          level: "info",
-          service: "recordings",
-          message: "Recording skipped — outside scheduled window",
-          cameraId,
-          mode: config.mode,
-        }));
-        return;
-      }
-    }
-
     // Insert a new recording row with null endTime (in-progress)
     await withTenantContext(tenantId, async (tx) => {
       await tx.insert(recordings).values({
@@ -428,6 +363,48 @@ export async function listRecordings(
   });
 }
 
+// ─── List All Recordings (cross-camera, with pagination) ──────────────────
+
+export async function listAllRecordings(
+  tenantId: string,
+  from?: Date,
+  to?: Date,
+  page: number = 1,
+  perPage: number = 20,
+): Promise<{ items: (typeof recordings.$inferSelect)[]; total: number }> {
+  return withTenantContext(tenantId, async (tx) => {
+    const conditions = [eq(recordings.tenantId, tenantId)];
+
+    if (from) {
+      conditions.push(gte(recordings.startTime, from));
+    }
+    if (to) {
+      conditions.push(lte(recordings.startTime, to));
+    }
+
+    const whereClause = and(...conditions);
+
+    const [items, [countResult]] = await Promise.all([
+      tx
+        .select()
+        .from(recordings)
+        .where(whereClause)
+        .orderBy(desc(recordings.startTime))
+        .limit(perPage)
+        .offset((page - 1) * perPage),
+      tx
+        .select({ value: count() })
+        .from(recordings)
+        .where(whereClause),
+    ]);
+
+    return {
+      items,
+      total: countResult?.value ?? 0,
+    };
+  });
+}
+
 // ─── VOD Playback Session ───────────────────────────────────────────────────
 
 /**
@@ -470,9 +447,19 @@ export async function createVodSession(
     const storage = getStorageProvider("s3", s3Config);
     playbackUrl = await storage.getSignedUrl(recording.s3Key, expiresInSec);
   } else {
-    // Local: use origin base URL
-    const storage = getStorageProvider("local");
-    playbackUrl = await storage.getSignedUrl(recording.filePath, expiresInSec);
+    // Local: use MediaMTX playback server (no auth required, works for API consumers)
+    const playbackBase = process.env["MEDIAMTX_PLAYBACK_URL"] ?? "http://localhost:9996";
+    const pathParts = recording.filePath.split("/");
+    const mtxPath = pathParts.find((p) => p.startsWith("cam-")) ?? pathParts[pathParts.length - 2] ?? "";
+    const fileName = pathParts[pathParts.length - 1] ?? "";
+    const tsMatch = fileName.match(/^(\d{4}-\d{2}-\d{2})_(\d{2})-(\d{2})-(\d{2})/);
+    const startIso = tsMatch
+      ? `${tsMatch[1]}T${tsMatch[2]}:${tsMatch[3]}:${tsMatch[4]}Z`
+      : recording.startTime.toISOString();
+    const durationSec = recording.endTime
+      ? Math.ceil((recording.endTime.getTime() - recording.startTime.getTime()) / 1000) + 2
+      : 65;
+    playbackUrl = `${playbackBase}/get?path=${encodeURIComponent(mtxPath)}&start=${encodeURIComponent(startIso)}&duration=${durationSec}&format=mp4`;
   }
 
   return {

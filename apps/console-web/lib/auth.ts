@@ -70,7 +70,10 @@ export async function exchangeCodeForTokens(
 }
 
 /**
- * Decode a JWT payload without signature verification (MVP only).
+ * Decode a JWT payload.
+ * Note: Signature verification is handled server-side by the API auth middleware.
+ * This client-side decode is only used for extracting display info (name, email, roles)
+ * from tokens that have already been validated by the API.
  */
 function decodeJwtPayload(token: string): Record<string, unknown> {
   const parts = token.split(".");

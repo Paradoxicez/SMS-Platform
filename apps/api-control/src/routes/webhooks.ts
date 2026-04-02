@@ -1,8 +1,10 @@
 import { Hono } from "hono";
 import { requireRole } from "../middleware/rbac";
+import { requireFeature } from "../middleware/feature-gate";
 import {
   registerWebhook,
   unregisterWebhook,
+  updateWebhook,
   listWebhooks,
   getDeliveryLogs,
   deliverEvent,
@@ -13,6 +15,10 @@ import type { AppEnv } from "../types";
  * T269: Webhook routes
  */
 const webhooksRouter = new Hono<AppEnv>();
+
+// All webhook routes require the "webhooks" feature
+webhooksRouter.use("/webhooks/*", requireFeature("webhooks"));
+webhooksRouter.use("/webhooks", requireFeature("webhooks"));
 
 // POST /webhooks — register webhook (admin)
 webhooksRouter.post(
@@ -39,6 +45,23 @@ webhooksRouter.get(
     const tenantId = c.get("tenantId") as string;
     const data = await listWebhooks(tenantId);
     return c.json({ data });
+  },
+);
+
+// PATCH /webhooks/:id — update webhook (admin)
+webhooksRouter.patch(
+  "/webhooks/:id",
+  requireRole("admin"),
+  async (c) => {
+    const tenantId = c.get("tenantId") as string;
+    const id = c.req.param("id");
+    const body = await c.req.json<{ url?: string; events?: string[]; is_active?: boolean }>();
+    const data: { url?: string; events?: string[]; isActive?: boolean } = {};
+    if (body.url !== undefined) data.url = body.url;
+    if (body.events !== undefined) data.events = body.events;
+    if (body.is_active !== undefined) data.isActive = body.is_active;
+    const updated = await updateWebhook(id, tenantId, data);
+    return c.json({ data: updated });
   },
 );
 

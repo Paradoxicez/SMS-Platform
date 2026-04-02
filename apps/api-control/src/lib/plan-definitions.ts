@@ -31,10 +31,8 @@ export const ALL_FEATURES = [
   "csv_import",
   "webhooks",
   "recording",
-  "forwarding",
   "audit_log",
   "map_public",
-  "ai",
   "sso",
   "multi_engine",
 ] as const;
@@ -88,7 +86,6 @@ export const PLAN_DEFINITIONS: Record<PlanTier, PlanDefinition> = {
       "csv_import",
       "webhooks",
       "recording",
-      "forwarding",
       "audit_log",
       "map_public",
     ],

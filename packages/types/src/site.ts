@@ -10,6 +10,7 @@ export const siteSchema = z.object({
   lng: z.number().nullable(),
   timezone: z.string().max(63).default("UTC"),
   default_profile_id: z.string().uuid().nullable().optional(),
+  default_policy_id: z.string().uuid().nullable().optional(),
   created_at: z.coerce.date(),
 });
 
@@ -23,6 +24,7 @@ export const createSiteSchema = z.object({
   lng: z.number().optional(),
   timezone: z.string().max(63).optional(),
   default_profile_id: z.string().uuid().optional(),
+  default_policy_id: z.string().uuid().optional(),
 });
 
 export type CreateSiteInput = z.infer<typeof createSiteSchema>;
@@ -34,6 +36,7 @@ export const updateSiteSchema = z.object({
   lng: z.number().nullable().optional(),
   timezone: z.string().max(63).optional(),
   default_profile_id: z.string().uuid().nullable().optional(),
+  default_policy_id: z.string().uuid().nullable().optional(),
 });
 
 export type UpdateSiteInput = z.infer<typeof updateSiteSchema>;

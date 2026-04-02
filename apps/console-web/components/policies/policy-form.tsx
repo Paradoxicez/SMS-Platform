@@ -1,19 +1,27 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { apiClient } from "../../lib/api-client";
+import { toast } from "sonner";
 
 /**
  * T101: Policy form component
  *
  * Used inside a Dialog for both create and edit.
- * Fields: name, scope tabs, TTL range, domain allowlist, rate limit, viewer concurrency.
+ * Fields: name, scope tabs (with assignment), TTL range, domain allowlist, rate limit, viewer concurrency.
  */
 
 interface PolicyData {
@@ -26,6 +34,12 @@ interface PolicyData {
   rate_limit_per_min: number;
   viewer_concurrency_limit: number;
   version?: number;
+}
+
+interface AssignTarget {
+  id: string;
+  name: string;
+  assigned: boolean;
 }
 
 interface PolicyFormDialogProps {
@@ -65,6 +79,67 @@ export function PolicyFormDialog({
   const [error, setError] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
+  // Assignment state
+  const [projects, setProjects] = useState<AssignTarget[]>([]);
+  const [sites, setSites] = useState<AssignTarget[]>([]);
+  const [cameras, setCameras] = useState<AssignTarget[]>([]);
+  const [loadingTargets, setLoadingTargets] = useState(false);
+  // Key to force re-mount Select after picking an option (resets to placeholder)
+  const [selectKey, setSelectKey] = useState(0);
+
+  // Fetch assignment targets
+  useEffect(() => {
+    if (!open) return;
+
+    setLoadingTargets(true);
+
+    const policyId = policy?.id;
+
+    Promise.all([
+      apiClient.listProjects(1, 100),
+      apiClient.get<{ data: { id: string; name: string; site_id: string; policy_id: string | null }[] }>("/cameras?per_page=200"),
+    ]).then(async ([projectsRes, camerasRes]) => {
+      const allProjects = (projectsRes.data ?? []) as any[];
+      const allCameras = (camerasRes.data ?? []) as any[];
+
+      // Fetch all sites for all projects
+      const siteResults = await Promise.all(
+        allProjects.map((p: any) =>
+          apiClient.listSites(p.id, 1, 100).catch(() => ({ data: [] })),
+        ),
+      );
+      const allSites = siteResults.flatMap((r) => (r.data ?? []) as any[]);
+
+      setProjects(
+        allProjects.map((p: any) => ({
+          id: p.id,
+          name: p.name,
+          assigned: policyId ? (p.default_policy_id ?? p.defaultPolicyId) === policyId : false,
+        })),
+      );
+
+      setSites(
+        allSites.map((s: any) => ({
+          id: s.id,
+          name: `${s.name}`,
+          assigned: policyId ? (s.default_policy_id ?? s.defaultPolicyId) === policyId : false,
+        })),
+      );
+
+      setCameras(
+        allCameras.map((c: any) => ({
+          id: c.id,
+          name: c.name,
+          assigned: policyId ? (c.policy_id ?? c.policyId) === policyId : false,
+        })),
+      );
+    }).catch(() => {
+      // ignore
+    }).finally(() => {
+      setLoadingTargets(false);
+    });
+  }, [open, policy?.id]);
+
   const validate = (): boolean => {
     const errors: string[] = [];
 
@@ -103,6 +178,23 @@ export function PolicyFormDialog({
     setDomains(domains.filter((d) => d !== domain));
   };
 
+  function addTarget(
+    list: AssignTarget[],
+    setList: React.Dispatch<React.SetStateAction<AssignTarget[]>>,
+    id: string,
+  ) {
+    setList(list.map((t) => (t.id === id ? { ...t, assigned: true } : t)));
+    setSelectKey((k) => k + 1); // reset Select to placeholder
+  }
+
+  function removeTarget(
+    list: AssignTarget[],
+    setList: React.Dispatch<React.SetStateAction<AssignTarget[]>>,
+    id: string,
+  ) {
+    setList(list.map((t) => (t.id === id ? { ...t, assigned: false } : t)));
+  }
+
   const handleSubmit = async () => {
     if (!validate()) return;
 
@@ -120,13 +212,82 @@ export function PolicyFormDialog({
         viewer_concurrency_limit: viewerConcurrency,
       };
 
+      let policyId: string;
+
       if (isEdit && policy?.id) {
         payload.version = policy.version;
-        await apiClient.patch(`/policies/${policy.id}`, payload);
+        const res = await apiClient.patch<{ data: { id: string } }>(`/policies/${policy.id}`, payload);
+        policyId = res.data.id;
       } else {
-        await apiClient.post("/policies", payload);
+        const res = await apiClient.post<{ data: { id: string } }>("/policies", payload);
+        policyId = res.data.id;
       }
 
+      // Assign to projects
+      const assignPromises: Promise<unknown>[] = [];
+
+      for (const p of projects) {
+        if (p.assigned) {
+          assignPromises.push(
+            apiClient.updateProject(p.id, { default_policy_id: policyId } as any),
+          );
+        } else if (isEdit) {
+          // Unassign: only if it was previously assigned to this policy
+          assignPromises.push(
+            apiClient.getProject(p.id).then((res) => {
+              const current = (res.data as any).default_policy_id ?? (res.data as any).defaultPolicyId;
+              if (current === policyId) {
+                return apiClient.updateProject(p.id, { default_policy_id: null } as any);
+              }
+            }),
+          );
+        }
+      }
+
+      // Assign to sites
+      for (const s of sites) {
+        if (s.assigned) {
+          assignPromises.push(
+            apiClient.patch(`/sites/${s.id}`, { default_policy_id: policyId }),
+          );
+        } else if (isEdit) {
+          assignPromises.push(
+            apiClient.get<{ data: any }>(`/sites/${s.id}`).then((res) => {
+              const current = res.data.default_policy_id ?? res.data.defaultPolicyId;
+              if (current === policyId) {
+                return apiClient.patch(`/sites/${s.id}`, { default_policy_id: null });
+              }
+            }),
+          );
+        }
+      }
+
+      // Assign to cameras
+      for (const c of cameras) {
+        if (c.assigned) {
+          // Fetch version for OCC
+          assignPromises.push(
+            apiClient.get<{ data: any }>(`/cameras/${c.id}`).then((res) => {
+              const version = res.data.version;
+              return apiClient.patch(`/cameras/${c.id}`, { policy_id: policyId, version });
+            }),
+          );
+        } else if (isEdit) {
+          assignPromises.push(
+            apiClient.get<{ data: any }>(`/cameras/${c.id}`).then((res) => {
+              const current = res.data.policy_id ?? res.data.policyId;
+              if (current === policyId) {
+                const version = res.data.version;
+                return apiClient.patch(`/cameras/${c.id}`, { policy_id: null, version });
+              }
+            }),
+          );
+        }
+      }
+
+      await Promise.allSettled(assignPromises);
+
+      toast.success(isEdit ? "Policy updated" : "Policy created");
       onSuccess();
     } catch (err) {
       setError(
@@ -138,6 +299,10 @@ export function PolicyFormDialog({
   };
 
   if (!open) return null;
+
+  const assignedProjectCount = projects.filter((p) => p.assigned).length;
+  const assignedSiteCount = sites.filter((s) => s.assigned).length;
+  const assignedCameraCount = cameras.filter((c) => c.assigned).length;
 
   return (
     <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/60">
@@ -162,25 +327,152 @@ export function PolicyFormDialog({
             />
           </div>
 
-          {/* Scope Tabs */}
+          {/* Scope Tabs — Assign to targets */}
           <div className="space-y-1.5">
-            <Label>Scope</Label>
+            <Label>Assign To</Label>
             <Tabs value={scopeTab} onValueChange={setScopeTab}>
               <TabsList>
-                <TabsTrigger value="project">Project Scope</TabsTrigger>
-                <TabsTrigger value="camera">Camera Scope</TabsTrigger>
+                <TabsTrigger value="project">
+                  Projects{assignedProjectCount > 0 ? ` (${assignedProjectCount})` : ""}
+                </TabsTrigger>
+                <TabsTrigger value="site">
+                  Sites{assignedSiteCount > 0 ? ` (${assignedSiteCount})` : ""}
+                </TabsTrigger>
+                <TabsTrigger value="camera">
+                  Cameras{assignedCameraCount > 0 ? ` (${assignedCameraCount})` : ""}
+                </TabsTrigger>
               </TabsList>
               <TabsContent value="project" className="mt-2">
-                <p className="text-sm text-muted-foreground">
-                  This policy can be assigned as a project default. All cameras
-                  in the project will inherit it unless overridden.
+                <p className="text-xs text-muted-foreground mb-2">
+                  Set as default policy for selected projects. All cameras inherit unless overridden at site or camera level.
                 </p>
+                {loadingTargets ? (
+                  <p className="text-sm text-muted-foreground">Loading...</p>
+                ) : (
+                  <div className="space-y-2">
+                    <Select
+                      key={`proj-${selectKey}`}
+                      onValueChange={(v) => addTarget(projects, setProjects, v)}
+                      disabled={projects.filter((p) => !p.assigned).length === 0}
+                    >
+                      <SelectTrigger className="h-8 text-sm">
+                        <SelectValue placeholder={
+                          projects.filter((p) => !p.assigned).length === 0
+                            ? "All projects assigned"
+                            : "Select a project..."
+                        } />
+                      </SelectTrigger>
+                      <SelectContent className="z-[2100]">
+                        {projects.filter((p) => !p.assigned).map((p) => (
+                          <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {projects.filter((p) => p.assigned).length > 0 && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {projects.filter((p) => p.assigned).map((p) => (
+                          <Badge
+                            key={p.id}
+                            variant="secondary"
+                            className="cursor-pointer gap-1"
+                            onClick={() => removeTarget(projects, setProjects, p.id)}
+                          >
+                            {p.name}
+                            <span className="ml-1 text-xs">&times;</span>
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </TabsContent>
+              <TabsContent value="site" className="mt-2">
+                <p className="text-xs text-muted-foreground mb-2">
+                  Set as default policy for selected sites. Cameras in the site inherit unless overridden at camera level.
+                </p>
+                {loadingTargets ? (
+                  <p className="text-sm text-muted-foreground">Loading...</p>
+                ) : (
+                  <div className="space-y-2">
+                    <Select
+                      key={`site-${selectKey}`}
+                      onValueChange={(v) => addTarget(sites, setSites, v)}
+                      disabled={sites.filter((s) => !s.assigned).length === 0}
+                    >
+                      <SelectTrigger className="h-8 text-sm">
+                        <SelectValue placeholder={
+                          sites.filter((s) => !s.assigned).length === 0
+                            ? "All sites assigned"
+                            : "Select a site..."
+                        } />
+                      </SelectTrigger>
+                      <SelectContent className="z-[2100]">
+                        {sites.filter((s) => !s.assigned).map((s) => (
+                          <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {sites.filter((s) => s.assigned).length > 0 && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {sites.filter((s) => s.assigned).map((s) => (
+                          <Badge
+                            key={s.id}
+                            variant="secondary"
+                            className="cursor-pointer gap-1"
+                            onClick={() => removeTarget(sites, setSites, s.id)}
+                          >
+                            {s.name}
+                            <span className="ml-1 text-xs">&times;</span>
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </TabsContent>
               <TabsContent value="camera" className="mt-2">
-                <p className="text-sm text-muted-foreground">
-                  This policy can be assigned directly to individual cameras,
-                  overriding the project default.
+                <p className="text-xs text-muted-foreground mb-2">
+                  Assign directly to specific cameras. This overrides site and project defaults.
                 </p>
+                {loadingTargets ? (
+                  <p className="text-sm text-muted-foreground">Loading...</p>
+                ) : (
+                  <div className="space-y-2">
+                    <Select
+                      key={`cam-${selectKey}`}
+                      onValueChange={(v) => addTarget(cameras, setCameras, v)}
+                      disabled={cameras.filter((c) => !c.assigned).length === 0}
+                    >
+                      <SelectTrigger className="h-8 text-sm">
+                        <SelectValue placeholder={
+                          cameras.filter((c) => !c.assigned).length === 0
+                            ? "All cameras assigned"
+                            : "Select a camera..."
+                        } />
+                      </SelectTrigger>
+                      <SelectContent className="z-[2100]">
+                        {cameras.filter((c) => !c.assigned).map((c) => (
+                          <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {cameras.filter((c) => c.assigned).length > 0 && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {cameras.filter((c) => c.assigned).map((c) => (
+                          <Badge
+                            key={c.id}
+                            variant="secondary"
+                            className="cursor-pointer gap-1"
+                            onClick={() => removeTarget(cameras, setCameras, c.id)}
+                          >
+                            {c.name}
+                            <span className="ml-1 text-xs">&times;</span>
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </TabsContent>
             </Tabs>
           </div>
@@ -308,14 +600,14 @@ export function PolicyFormDialog({
             <Input
               id="viewer-concurrency"
               type="number"
-              min={1}
+              min={0}
               value={viewerConcurrency}
               onChange={(e) =>
                 setViewerConcurrency(parseInt(e.target.value, 10) || 0)
               }
             />
             <p className="text-xs text-muted-foreground">
-              Maximum number of concurrent viewers per camera.
+              Maximum number of concurrent viewers per camera. Set 0 for unlimited.
             </p>
           </div>
 

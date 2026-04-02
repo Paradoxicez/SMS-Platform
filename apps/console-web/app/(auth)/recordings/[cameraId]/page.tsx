@@ -11,10 +11,14 @@ import {
   ArrowLeft,
   Settings,
   CircleDot,
+  X,
+  Trash2,
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { toast } from "sonner";
 import {
   Table,
   TableBody,
@@ -27,6 +31,7 @@ import { RecordingTimeline } from "@/components/recordings/recording-timeline";
 import { RecordingPlayer } from "@/components/recordings/recording-player";
 import { formatTime } from "@/lib/format-date";
 import { apiClient } from "@/lib/api-client";
+import { useUserRole } from "@/lib/use-user-role";
 
 // ---------- Types ----------
 
@@ -55,13 +60,15 @@ interface CameraInfo {
 // ---------- Helpers ----------
 
 function formatDuration(ms: number): string {
-  if (ms <= 0) return "0m";
-  const totalMinutes = Math.floor(ms / 60000);
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-  if (hours > 0 && minutes > 0) return `${hours}h ${minutes}m`;
-  if (hours > 0) return `${hours}h`;
-  return `${minutes}m`;
+  if (ms <= 0) return "0s";
+  const totalSec = Math.floor(ms / 1000);
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  if (h > 0 && m > 0) return `${h}h ${m}m`;
+  if (h > 0) return `${h}h`;
+  if (m > 0) return `${m}m ${s}s`;
+  return `${s}s`;
 }
 
 function formatBytes(bytes: number): string {
@@ -97,12 +104,14 @@ function formatDisplayDate(dateStr: string): string {
 // ---------- Inner page (needs useSearchParams) ----------
 
 function RecordingDetailContent() {
+  const { canEdit } = useUserRole();
   const params = useParams<{ cameraId: string }>();
   const searchParams = useSearchParams();
   const router = useRouter();
   const cameraId = params.cameraId;
 
   const initialDate = searchParams.get("date") || toDateStr(new Date());
+  const clipParam = searchParams.get("clip");
 
   const [currentDate, setCurrentDate] = useState(initialDate);
   const [recordings, setRecordings] = useState<Recording[]>([]);
@@ -110,6 +119,9 @@ function RecordingDetailContent() {
   const [loading, setLoading] = useState(true);
   const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
   const [currentPlayTime, setCurrentPlayTime] = useState<Date | null>(null);
+  const [autoPlayed, setAutoPlayed] = useState(false);
+  const [activeClipIndex, setActiveClipIndex] = useState<number>(-1);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   // Fetch camera info
   useEffect(() => {
@@ -138,13 +150,9 @@ function RecordingDetailContent() {
   const fetchRecordings = useCallback(async () => {
     setLoading(true);
     try {
-      const dayStart = parseDate(currentDate);
-      const dayEnd = new Date(dayStart);
-      dayEnd.setDate(dayEnd.getDate() + 1);
-
       const p = new URLSearchParams();
-      p.set("from", dayStart.toISOString());
-      p.set("to", dayEnd.toISOString());
+      p.set("from", currentDate + "T00:00:00.000Z");
+      p.set("to", currentDate + "T23:59:59.999Z");
 
       const res = await apiClient.get<{ data: Recording[] }>(
         `/cameras/${cameraId}/recordings?${p.toString()}`,
@@ -161,6 +169,24 @@ function RecordingDetailContent() {
     fetchRecordings();
   }, [fetchRecordings]);
 
+  // Auto-play first complete clip when recordings load
+  useEffect(() => {
+    if (autoPlayed || loading || recordings.length === 0) return;
+    setAutoPlayed(true);
+
+    // If clip param specified, play that one
+    if (clipParam) {
+      const target = recordings.find((r) => r.id === clipParam);
+      if (target) { playRecording(target.id); return; }
+    }
+
+    // Otherwise play the latest complete recording
+    const complete = recordings.filter((r) => r.end_time && r.size_bytes > 0);
+    if (complete.length > 0) {
+      playRecording(complete[0]!.id);
+    }
+  }, [loading, recordings, autoPlayed, clipParam]);
+
   // Day navigation
   function navigateDay(offset: number) {
     const d = parseDate(currentDate);
@@ -172,15 +198,38 @@ function RecordingDetailContent() {
     router.replace(`/recordings/${cameraId}?date=${newDate}`);
   }
 
-  // Play a specific recording clip
+  // Play a specific recording clip — uses API stream endpoint with blob URL
+  // for Safari compatibility (Safari requires Content-Length which MediaMTX doesn't provide)
   async function playRecording(recordingId: string) {
+    // Track active clip index
+    const idx = recordings.findIndex((r) => r.id === recordingId);
+    setActiveClipIndex(idx);
+
     try {
-      const res = await apiClient.post<{
-        data: { playback_url: string };
-      }>(`/recordings/${recordingId}/playback`, {});
-      setPlaybackUrl(res.data.playback_url);
+      const headers: Record<string, string> = {};
+      try {
+        const sessionRes = await fetch("/api/auth/session");
+        const session = await sessionRes.json();
+        if (session?.accessToken) headers["Authorization"] = `Bearer ${session.accessToken}`;
+      } catch { /* continue without token */ }
+
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001/api/v1"}/recordings/${recordingId}/stream`,
+        { headers },
+      );
+      if (!res.ok) throw new Error(`${res.status}`);
+
+      const blob = await res.blob();
+      if (playbackUrl?.startsWith("blob:")) URL.revokeObjectURL(playbackUrl);
+      setPlaybackUrl(URL.createObjectURL(blob));
     } catch {
-      // Playback session creation failed
+      // Fallback: use MediaMTX playback URL directly (works in Chrome/Firefox)
+      try {
+        const res = await apiClient.post<{ data: { playback_url: string } }>(
+          `/recordings/${recordingId}/playback`, {},
+        );
+        setPlaybackUrl(res.data.playback_url);
+      } catch { /* Playback failed */ }
     }
   }
 
@@ -228,13 +277,37 @@ function RecordingDetailContent() {
     }
   }
 
-  // Player time update handler
+  // Player time update handler — use active clip's start time
   function handlePlayerTimeUpdate(currentSec: number) {
-    // If we have a playing recording, compute the absolute time from the first recording's start
-    if (recordings.length > 0 && playbackUrl) {
-      const firstStart = new Date(recordings[0]!.start_time);
-      setCurrentPlayTime(new Date(firstStart.getTime() + currentSec * 1000));
+    if (activeClipIndex >= 0 && activeClipIndex < recordings.length && playbackUrl) {
+      const clipStart = new Date(recordings[activeClipIndex]!.start_time);
+      setCurrentPlayTime(new Date(clipStart.getTime() + currentSec * 1000));
     }
+  }
+
+  // Bulk actions
+  async function handleBulkDownload() {
+    for (const id of selectedIds) {
+      try {
+        const headers: Record<string, string> = {};
+        try { const s = await (await fetch("/api/auth/session")).json(); if (s?.accessToken) headers["Authorization"] = `Bearer ${s.accessToken}`; } catch {}
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001/api/v1"}/recordings/${id}/stream`, { headers });
+        if (!res.ok) continue;
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a"); a.href = url; a.download = `recording_${id}.mp4`; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+      } catch {}
+    }
+    toast.success(`Downloading ${selectedIds.size} recording(s)`);
+  }
+
+  async function handleBulkDelete() {
+    try {
+      await Promise.all(Array.from(selectedIds).map((id) => apiClient.delete(`/recordings/${id}`)));
+      toast.success(`Deleted ${selectedIds.size} recording(s)`);
+      setSelectedIds(new Set());
+      fetchRecordings();
+    } catch { toast.error("Failed to delete"); }
   }
 
   const isRecordingEnabled = (camera as any)?.recording_enabled === true;
@@ -286,7 +359,7 @@ function RecordingDetailContent() {
 
       {/* Player section */}
       <Card>
-        <CardContent className="pt-6">
+        <CardContent className="pt-4">
           <RecordingPlayer
             playbackUrl={playbackUrl}
             onTimeUpdate={handlePlayerTimeUpdate}
@@ -330,6 +403,7 @@ function RecordingDetailContent() {
             }))}
             onSeek={handleTimelineSeek}
             currentTime={currentPlayTime}
+            activeRecordingIndex={activeClipIndex}
           />
         </CardContent>
       </Card>
@@ -358,6 +432,14 @@ function RecordingDetailContent() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-10">
+                      <Checkbox
+                        checked={recordings.length > 0 && selectedIds.size === recordings.length}
+                        onCheckedChange={(checked) =>
+                          setSelectedIds(checked ? new Set(recordings.map((r) => r.id)) : new Set())
+                        }
+                      />
+                    </TableHead>
                     <TableHead>Start</TableHead>
                     <TableHead>End</TableHead>
                     <TableHead>Duration</TableHead>
@@ -372,7 +454,19 @@ function RecordingDetailContent() {
                       ? new Date(rec.end_time!).getTime() - new Date(rec.start_time).getTime()
                       : 0;
                     return (
-                      <TableRow key={rec.id}>
+                      <TableRow key={rec.id} data-selected={selectedIds.has(rec.id) || undefined}>
+                        <TableCell>
+                          <Checkbox
+                            checked={selectedIds.has(rec.id)}
+                            onCheckedChange={(checked) => {
+                              setSelectedIds((prev) => {
+                                const next = new Set(prev);
+                                checked ? next.add(rec.id) : next.delete(rec.id);
+                                return next;
+                              });
+                            }}
+                          />
+                        </TableCell>
                         <TableCell className="text-sm">
                           {formatTime(rec.start_time)}
                         </TableCell>
@@ -416,6 +510,28 @@ function RecordingDetailContent() {
                   })}
                 </TableBody>
               </Table>
+            </div>
+          )}
+
+          {/* Bulk actions bar */}
+          {selectedIds.size > 0 && (
+            <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2">
+              <div className="flex items-center gap-3 rounded-lg border bg-background px-4 py-2.5 shadow-lg">
+                <span className="text-sm font-medium">{selectedIds.size} selected</span>
+                <div className="h-4 w-px bg-border" />
+                <Button variant="outline" size="sm" className="gap-1.5" onClick={handleBulkDownload}>
+                  <Download className="size-3.5" /> Download
+                </Button>
+                {canEdit && (
+                  <Button variant="outline" size="sm" className="gap-1.5 text-destructive hover:text-destructive" onClick={handleBulkDelete}>
+                    <Trash2 className="size-3.5" /> Delete
+                  </Button>
+                )}
+                <div className="h-4 w-px bg-border" />
+                <Button variant="ghost" size="icon" className="size-7" onClick={() => setSelectedIds(new Set())}>
+                  <X className="size-4" />
+                </Button>
+              </div>
             </div>
           )}
         </CardContent>

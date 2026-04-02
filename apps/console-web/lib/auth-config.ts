@@ -1,12 +1,9 @@
 import NextAuth from "next-auth"
-import Keycloak from "next-auth/providers/keycloak"
 import Credentials from "next-auth/providers/credentials"
 
-const keycloakIssuer =
-  process.env.AUTH_KEYCLOAK_ISSUER ?? "http://localhost:8080/realms/sms-platform"
-const keycloakClientId = process.env.AUTH_KEYCLOAK_ID ?? "console-web"
-const keycloakClientSecret =
-  process.env.AUTH_KEYCLOAK_SECRET ?? "console-web-dev-secret"
+// Server-side internal URL (container-to-container), falls back to public URL
+const API_URL =
+  process.env["API_INTERNAL_URL"] ?? process.env["NEXT_PUBLIC_API_URL"] ?? "http://localhost:3001/api/v1"
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [
@@ -21,54 +18,40 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (!credentials?.email || !credentials?.password) return null
 
         try {
-          // Use Keycloak's Direct Access Grants (Resource Owner Password)
-          const tokenRes = await fetch(
-            `${keycloakIssuer}/protocol/openid-connect/token`,
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/x-www-form-urlencoded" },
-              body: new URLSearchParams({
-                grant_type: "password",
-                client_id: keycloakClientId,
-                client_secret: keycloakClientSecret,
-                username: credentials.email as string,
-                password: credentials.password as string,
-                scope: "openid profile email",
-              }),
-            }
-          )
+          const res = await fetch(`${API_URL}/auth/login`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              email: credentials.email,
+              password: credentials.password,
+            }),
+          })
 
-          if (!tokenRes.ok) return null
+          if (!res.ok) return null
 
-          const tokens = await tokenRes.json()
+          const { data } = await res.json()
 
-          // Decode the access token to get user info
-          const payload = JSON.parse(
-            Buffer.from(tokens.access_token.split(".")[1], "base64").toString()
-          )
+          // MFA required — pass the mfa_token through
+          if (data.mfa_required) {
+            return {
+              id: data.user_id,
+              mfaRequired: true,
+              mfaToken: data.mfa_token,
+            } as any
+          }
 
           return {
-            id: payload.sub,
-            name: payload.name ?? payload.preferred_username,
-            email: payload.email,
-            image: null,
-            accessToken: tokens.access_token,
-            refreshToken: tokens.refresh_token,
-            role:
-              payload.realm_access?.roles?.find(
-                (r: string) =>
-                  r === "admin" || r === "operator" || r === "developer" || r === "viewer"
-              ) ?? "viewer",
+            id: data.user.id,
+            name: data.user.name,
+            email: data.user.email,
+            accessToken: data.access_token,
+            role: data.user.role,
+            tenantId: data.user.tenant_id,
           }
         } catch {
           return null
         }
       },
-    }),
-    Keycloak({
-      clientId: keycloakClientId,
-      clientSecret: keycloakClientSecret,
-      issuer: keycloakIssuer,
     }),
   ],
   secret: process.env.AUTH_SECRET,
@@ -79,28 +62,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     error: "/login",
   },
   callbacks: {
-    async jwt({ token, user, account, profile }) {
-      // Credentials provider
-      if (user && "accessToken" in user) {
-        token.accessToken = user.accessToken as string
-        token.refreshToken = (user as Record<string, unknown>).refreshToken as string
-        token.role = (user as Record<string, unknown>).role as string
-      }
-      // Keycloak OIDC provider
-      if (account?.provider === "keycloak") {
-        token.accessToken = account.access_token
-        token.role =
-          (profile as Record<string, unknown>)?.realm_access !== undefined
-            ? (
-                (profile as Record<string, unknown>).realm_access as Record<
-                  string,
-                  string[]
-                >
-              )?.roles?.find(
-                (r) =>
-                  r === "admin" || r === "operator" || r === "developer" || r === "viewer"
-              ) ?? "viewer"
-            : "admin"
+    async jwt({ token, user }) {
+      if (user) {
+        token.accessToken = (user as any).accessToken as string
+        token.role = (user as any).role as string
+        token.tenantId = (user as any).tenantId as string
       }
       return token
     },
@@ -109,6 +75,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         ...session,
         accessToken: token.accessToken as string | undefined,
         role: (token.role as string) ?? "viewer",
+        tenantId: token.tenantId as string | undefined,
       }
     },
     async authorized({ auth: session, request }) {
@@ -117,7 +84,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
       const isPublic =
         pathname.startsWith("/login") ||
-        pathname.startsWith("/register") ||
         pathname.startsWith("/verify") ||
         pathname.startsWith("/api/auth") ||
         pathname.startsWith("/play") ||

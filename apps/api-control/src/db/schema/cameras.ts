@@ -44,6 +44,10 @@ export const cameras = pgTable("cameras", {
   healthStatus: healthStatusEnum("health_status").notNull().default("stopped"),
   policyId: uuid("policy_id").references(() => policies.id),
   profileId: uuid("profile_id").references(() => streamProfiles.id),
+  sourceCodec: varchar("source_codec", { length: 32 }),
+  sourceResolution: varchar("source_resolution", { length: 32 }),
+  sourceFps: integer("source_fps"),
+  sourceAudio: varchar("source_audio", { length: 32 }),
   thumbnailUrl: text("thumbnail_url"),
   thumbnailUpdatedAt: timestamp("thumbnail_updated_at", {
     withTimezone: true,

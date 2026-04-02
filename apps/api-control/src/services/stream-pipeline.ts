@@ -9,6 +9,7 @@ import { eq, and } from "drizzle-orm";
 import { db } from "../db/client";
 import { cameras, streamProfiles } from "../db/schema";
 import { mediamtxFetch } from "../lib/mediamtx-fetch";
+import { resolveEffectiveConfig } from "./recording-config";
 
 const RESOLUTION_MAP: Record<string, string> = {
   "2160p": "3840:2160",
@@ -99,7 +100,7 @@ export function buildFfmpegCommand(
 ): string | null {
   const codec = profile.outputCodec ?? "h264";
 
-  // Passthrough: no FFmpeg needed — stream goes directly to viewer via WebRTC
+  // No FFmpeg needed for passthrough — stream goes directly to viewer
   if (codec === "passthrough") {
     return null;
   }
@@ -157,9 +158,14 @@ export function buildFfmpegCommand(
   }
 
   // Resolution scaling — use simple scale without min() to avoid shell quoting issues
+  // Chain crop filter to ensure width/height are divisible by 2 (required by libx264)
   if (needsResolution && !useCopy) {
     const scale = RESOLUTION_MAP[profile.outputResolution];
-    args.push("-vf", `scale=${scale}:force_original_aspect_ratio=decrease`);
+    args.push("-vf", `scale=${scale}:force_original_aspect_ratio=decrease,crop=trunc(iw/2)*2:trunc(ih/2)*2`);
+  } else if (!useCopy) {
+    // Even without resolution change, ensure dimensions are divisible by 2
+    // Some cameras output odd resolutions that libx264 rejects
+    args.push("-vf", "crop=trunc(iw/2)*2:trunc(ih/2)*2");
   }
 
   // Framerate
@@ -194,27 +200,39 @@ export function buildFfmpegCommand(
  * 2. Add HLS output path (cam-{id}-hls)
  * 3. Set FFmpeg transcode hook based on profile
  */
+async function addOrPatchPath(name: string, config: Record<string, unknown>) {
+  const res = await mediamtxFetch(`/v3/config/paths/add/${encodeURIComponent(name)}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(config),
+  });
+  if (!res.ok) {
+    await mediamtxFetch(`/v3/config/paths/patch/${encodeURIComponent(name)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(config),
+    });
+  }
+}
+
 export async function setupCameraPipeline(
   cameraId: string,
   tenantId: string,
   rtspUrl: string,
 ): Promise<{ success: boolean; error?: string }> {
   const pathName = `cam-${cameraId}`;
+  const rawPathName = `${pathName}-raw`;
   const hlsPathName = `${pathName}-hls`;
 
   // Get profile settings
   const profile = await getCameraProfileSettings(cameraId, tenantId);
-  const ffmpegCmd = buildFfmpegCommand(pathName, hlsPathName, profile);
-
-  const isPassthroughWebrtc =
-    profile.outputCodec === "passthrough" && profile.outputProtocol === "webrtc";
+  const isPassthrough = profile.outputCodec === "passthrough";
 
   console.log(JSON.stringify({
     level: "info",
     service: "stream-pipeline",
     message: `Setting up pipeline for ${pathName}`,
     profile: {
-      protocol: profile.outputProtocol,
       audio: profile.audioMode,
       resolution: profile.outputResolution,
       fps: profile.maxFramerate,
@@ -239,7 +257,6 @@ export async function setupCameraPipeline(
 
     if (!addRes.ok) {
       const body = await addRes.text();
-      // Path might already exist — try patching instead
       if (body.includes("already exists")) {
         await mediamtxFetch(
           `/v3/config/paths/patch/${encodeURIComponent(pathName)}`,
@@ -258,48 +275,109 @@ export async function setupCameraPipeline(
       }
     }
 
-    // Passthrough + WebRTC: only the source path is needed.
-    // WebRTC viewers connect directly to cam-{id} — no HLS path or FFmpeg hook.
-    if (isPassthroughWebrtc) {
-      // Clear any previously configured FFmpeg hook
+    // 2. Detect source codec (wait briefly for tracks)
+    let sourceCodec: string | null = null;
+    for (let attempt = 0; attempt < 10; attempt++) {
+      await new Promise((r) => setTimeout(r, 500));
+      const pathRes = await mediamtxFetch(`/v3/paths/get/${encodeURIComponent(pathName)}`);
+      if (pathRes.ok) {
+        const pathData = await pathRes.json() as { tracks2?: any[] };
+        const videoTrack = (pathData.tracks2 ?? []).find((t: any) =>
+          ["H264", "H265", "VP8", "VP9", "AV1"].includes(t.codec),
+        );
+        if (videoTrack) {
+          sourceCodec = videoTrack.codec;
+          // Update DB with source info
+          const info = parseTracksInfo(pathData.tracks2 ?? []);
+          await db
+            .update(cameras)
+            .set({
+              sourceCodec: info.codec,
+              sourceResolution: info.resolution,
+              sourceFps: info.fps,
+              sourceAudio: info.audio,
+              updatedAt: new Date(),
+            })
+            .where(and(eq(cameras.id, cameraId), eq(cameras.tenantId, tenantId)));
+          break;
+        }
+      }
+    }
+
+    const isH265 = sourceCodec === "H265";
+
+    console.log(JSON.stringify({
+      level: "info",
+      service: "stream-pipeline",
+      message: `Source detected for ${pathName}`,
+      sourceCodec,
+      isH265,
+    }));
+
+    // 3. If H265 → create -raw path with auto transcode (H265→H264, original resolution)
+    if (isH265) {
+      await addOrPatchPath(rawPathName, { source: "publisher" });
+
+      // Auto transcode: H265→H264, no downscale, no fps change, strip audio for efficiency
+      const rawFfmpegCmd = [
+        "ffmpeg",
+        "-i", `rtsp://localhost:8554/${pathName}`,
+        "-c:v", "libx264",
+        "-preset", "ultrafast",
+        "-tune", "zerolatency",
+        "-crf", "23",
+        "-maxrate", "8000k",
+        "-bufsize", "16000k",
+        "-an",
+        "-f", "rtsp",
+        `rtsp://publisher:publisher_secret@localhost:8554/${rawPathName}`,
+      ].join(" ");
+
       await mediamtxFetch(
         `/v3/config/paths/patch/${encodeURIComponent(pathName)}`,
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            runOnReady: "",
-            runOnReadyRestart: false,
+            runOnReady: rawFfmpegCmd,
+            runOnReadyRestart: true,
           }),
         },
       );
+    }
+
+    // Passthrough: source path (+ optional -raw for H265) is enough
+    if (isPassthrough) {
+      if (!isH265) {
+        // Clear any previously configured FFmpeg hook
+        await mediamtxFetch(
+          `/v3/config/paths/patch/${encodeURIComponent(pathName)}`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              runOnReady: "",
+              runOnReadyRestart: false,
+            }),
+          },
+        );
+      }
       return { success: true };
     }
 
-    // 2. Add HLS output path (receives from FFmpeg)
-    await mediamtxFetch(
-      `/v3/config/paths/add/${encodeURIComponent(hlsPathName)}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ source: "publisher" }),
-      },
-    ).catch(() => {
-      // Might already exist — patch it
-      return mediamtxFetch(
-        `/v3/config/paths/patch/${encodeURIComponent(hlsPathName)}`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ source: "publisher" }),
-        },
-      );
-    });
+    // 4. Add HLS output path for profile transcode
+    await addOrPatchPath(hlsPathName, { source: "publisher" });
 
-    // 3. Set FFmpeg transcode hook
+    // 5. Profile FFmpeg: input from -raw (if H265) or original (if H264)
+    const ffmpegInputPath = isH265 ? rawPathName : pathName;
+    const ffmpegCmd = buildFfmpegCommand(ffmpegInputPath, hlsPathName, profile);
+
+    // 6. Set FFmpeg transcode hook on the input path
+    // For H265: hook on -raw path (runs when auto transcode output is ready)
+    // For H264: hook on source path (runs when camera stream is ready)
     if (ffmpegCmd) {
       await mediamtxFetch(
-        `/v3/config/paths/patch/${encodeURIComponent(pathName)}`,
+        `/v3/config/paths/patch/${encodeURIComponent(isH265 ? rawPathName : pathName)}`,
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -309,6 +387,52 @@ export async function setupCameraPipeline(
           }),
         },
       );
+    }
+
+    // 4. Restore recording config if camera has recording enabled
+    const camera = await db.query.cameras.findFirst({
+      where: and(eq(cameras.id, cameraId), eq(cameras.tenantId, tenantId)),
+      columns: { recordingEnabled: true },
+    });
+
+    if (camera?.recordingEnabled) {
+      try {
+        const config = await resolveEffectiveConfig(tenantId, cameraId);
+        const retentionHours = config.retentionDays * 24;
+        const segmentMinutes = config.segmentDurationMinutes ?? 60;
+
+        await mediamtxFetch(
+          `/v3/config/paths/patch/${encodeURIComponent(pathName)}`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              record: true,
+              recordPath: `./recordings/%path/%Y-%m-%d_%H-%M-%S-%f`,
+              recordFormat: "fmp4",
+              recordDeleteAfter: `${retentionHours}h0m0s`,
+              recordSegmentDuration: `${segmentMinutes}m0s`,
+              runOnRecordSegmentCreate: "/on-record-segment.sh recording_start",
+              runOnRecordSegmentComplete: "/on-record-segment.sh recording_end",
+            }),
+          },
+        );
+
+        console.log(JSON.stringify({
+          level: "info",
+          service: "stream-pipeline",
+          message: `Restored recording config for ${pathName}`,
+          cameraId,
+        }));
+      } catch (err) {
+        console.warn(JSON.stringify({
+          level: "warn",
+          service: "stream-pipeline",
+          message: `Failed to restore recording config for ${pathName}`,
+          cameraId,
+          error: err instanceof Error ? err.message : String(err),
+        }));
+      }
     }
 
     return { success: true };
@@ -429,4 +553,109 @@ export async function updateCameraPipeline(
       error: err instanceof Error ? err.message : String(err),
     };
   }
+}
+
+// ─── Analyze RTSP Source ─────────────────────────────────────────────────────
+
+export interface AnalyzeResult {
+  codec: string | null;
+  resolution: string | null;
+  fps: number | null;
+  audio: string | null;
+}
+
+/**
+ * Analyze an RTSP source URL by creating a temporary MediaMTX path,
+ * waiting for tracks to appear, reading codec/resolution info, then cleaning up.
+ */
+export async function analyzeRtspSource(rtspUrl: string): Promise<AnalyzeResult> {
+  const tempPath = `_analyze_${Date.now()}`;
+
+  try {
+    await mediamtxFetch(`/v3/config/paths/add/${encodeURIComponent(tempPath)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        source: rtspUrl,
+        sourceProtocol: "tcp",
+        sourceOnDemand: false,
+      }),
+    });
+
+    let tracks2: any[] = [];
+    for (let attempt = 0; attempt < 20; attempt++) {
+      await new Promise((r) => setTimeout(r, 500));
+      const res = await mediamtxFetch(`/v3/paths/get/${encodeURIComponent(tempPath)}`);
+      if (res.ok) {
+        const data = await res.json() as { tracks2?: any[] };
+        if (data.tracks2 && data.tracks2.length > 0) {
+          tracks2 = data.tracks2;
+          break;
+        }
+      }
+    }
+
+    return parseTracksInfo(tracks2);
+  } finally {
+    await mediamtxFetch(`/v3/config/paths/delete/${encodeURIComponent(tempPath)}`, {
+      method: "DELETE",
+    }).catch(() => {});
+  }
+}
+
+/**
+ * Detect source info for an existing camera path and update the database.
+ */
+export async function detectAndUpdateSourceInfo(
+  cameraId: string,
+  tenantId: string,
+): Promise<AnalyzeResult> {
+  const pathName = `cam-${cameraId}`;
+  const empty: AnalyzeResult = { codec: null, resolution: null, fps: null, audio: null };
+
+  try {
+    const res = await mediamtxFetch(`/v3/paths/get/${encodeURIComponent(pathName)}`);
+    if (!res.ok) return empty;
+
+    const data = await res.json() as { tracks2?: any[] };
+    const info = parseTracksInfo(data.tracks2 ?? []);
+
+    await db
+      .update(cameras)
+      .set({
+        sourceCodec: info.codec,
+        sourceResolution: info.resolution,
+        sourceFps: info.fps,
+        sourceAudio: info.audio,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(cameras.id, cameraId), eq(cameras.tenantId, tenantId)));
+
+    return info;
+  } catch {
+    return empty;
+  }
+}
+
+function parseTracksInfo(tracks2: any[]): AnalyzeResult {
+  const result: AnalyzeResult = { codec: null, resolution: null, fps: null, audio: null };
+
+  const videoTrack = tracks2.find((t: any) =>
+    ["H264", "H265", "VP8", "VP9", "AV1"].includes(t.codec),
+  );
+  if (videoTrack) {
+    result.codec = videoTrack.codec;
+    const props = videoTrack.codecProps;
+    if (props?.width && props?.height) {
+      result.resolution = `${props.width}x${props.height}`;
+    }
+    if (props?.fps) result.fps = props.fps;
+  }
+
+  const audioTrack = tracks2.find((t: any) =>
+    ["AAC", "G711", "G722", "Opus", "LPCM", "FLAC", "AC3"].includes(t.codec),
+  );
+  if (audioTrack) result.audio = audioTrack.codec;
+
+  return result;
 }

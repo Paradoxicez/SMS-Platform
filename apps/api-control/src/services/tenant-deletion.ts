@@ -15,7 +15,6 @@ import {
   apiClients,
 } from "../db/schema";
 import { recordings } from "../db/schema/recordings";
-import { aiIntegrations, aiEvents } from "../db/schema/ai-integrations";
 import { webhookDeliveries } from "../db/schema/webhooks";
 
 /**
@@ -55,10 +54,6 @@ export async function deleteTenant(
 
   // Cascade delete in dependency order
   await db.transaction(async (tx) => {
-    // AI events and integrations
-    await tx.delete(aiEvents).where(eq(aiEvents.tenantId, tenantId));
-    await tx.delete(aiIntegrations).where(eq(aiIntegrations.tenantId, tenantId));
-
     // Recordings
     await tx.delete(recordings).where(eq(recordings.tenantId, tenantId));
 

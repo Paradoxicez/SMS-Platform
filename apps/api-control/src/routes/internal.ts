@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import { db } from "../db/client";
 import { cameras } from "../db/schema";
 import { AppError } from "../middleware/error-handler";
-import { handleRecordingEvent, triggerEventRecording, type RecordingEvent, type EventRecordingTrigger } from "../services/recordings";
+import { handleRecordingEvent, type RecordingEvent } from "../services/recordings";
 import type { AppEnv } from "../types";
 
 const internalRouter = new Hono<AppEnv>();
@@ -15,7 +15,14 @@ const internalRouter = new Hono<AppEnv>();
  */
 const internalAuth = createMiddleware(async (c, next) => {
   const secret = c.req.header("X-Internal-Secret");
-  const expectedSecret = process.env["INTERNAL_SECRET"] ?? "dev-secret";
+  const expectedSecret = process.env["INTERNAL_SECRET"];
+
+  if (!expectedSecret) {
+    return c.json(
+      { error: { code: "SERVER_ERROR", message: "INTERNAL_SECRET not configured" } },
+      500,
+    );
+  }
 
   if (!secret || secret !== expectedSecret) {
     return c.json(
@@ -180,28 +187,6 @@ internalRouter.post("/recording/event", async (c) => {
 
   return c.json({
     data: { status: "ok" },
-    meta: {
-      request_id: crypto.randomUUID(),
-      timestamp: new Date().toISOString(),
-    },
-  });
-});
-
-// POST /internal/recording/trigger — AI event-based recording trigger
-internalRouter.post("/recording/trigger", async (c) => {
-  const trigger = await c.req.json<EventRecordingTrigger>();
-
-  if (!trigger.camera_id || !trigger.tenant_id || !trigger.event_type) {
-    return c.json(
-      { error: { code: "BAD_REQUEST", message: "Missing required fields: camera_id, tenant_id, event_type" } },
-      400,
-    );
-  }
-
-  const result = await triggerEventRecording(trigger);
-
-  return c.json({
-    data: result,
     meta: {
       request_id: crypto.randomUUID(),
       timestamp: new Date().toISOString(),

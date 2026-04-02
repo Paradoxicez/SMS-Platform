@@ -62,9 +62,23 @@ export function RecordingPlayer({
     );
   }
 
+  const isHls = playbackUrl.includes(".m3u8");
+
   return (
     <div data-recording-player="">
-      <HlsPlayer src={playbackUrl} autoPlay onError={() => {}} />
+      {isHls ? (
+        <HlsPlayer src={playbackUrl} autoPlay onError={() => {}} />
+      ) : (
+        <div className="relative aspect-video bg-black rounded-lg overflow-hidden">
+          <video
+            className="size-full"
+            controls
+            autoPlay
+            playsInline
+            src={playbackUrl}
+          />
+        </div>
+      )}
       {/* Time display */}
       <div className="mt-2 flex items-center justify-center gap-2 text-sm text-muted-foreground">
         <span>{formatPlayerTime(currentTime)}</span>

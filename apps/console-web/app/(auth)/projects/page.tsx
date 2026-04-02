@@ -53,6 +53,7 @@ import { toast } from "sonner"
 import { SiteDialog } from "@/components/sites/site-dialog"
 import { AddCameraDialog } from "@/components/cameras/add-camera-dialog"
 import { EditCameraDialog } from "@/components/cameras/edit-camera-dialog"
+import { useUserRole } from "@/lib/use-user-role"
 import { RecordingSettingsDialog } from "@/components/recordings/recording-settings-dialog"
 import { SortableTableHead, useTableSort } from "@/components/ui/sortable-table-head"
 import { TablePagination, useClientPagination } from "@/components/ui/table-pagination"
@@ -428,6 +429,7 @@ function ProjectsTable({
 }: {
   onSelect: (sel: Selection) => void
 }) {
+  const { canEdit } = useUserRole()
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
   const { sortKey, sortDirection, handleSort, sortData } = useTableSort()
@@ -519,10 +521,12 @@ function ProjectsTable({
     <>
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-lg font-semibold">Projects</h2>
-        <Button onClick={openCreate}>
-          <Plus className="mr-1.5 size-4" />
-          Add Project
-        </Button>
+        {canEdit && (
+          <Button onClick={openCreate}>
+            <Plus className="mr-1.5 size-4" />
+            Add Project
+          </Button>
+        )}
       </div>
 
       {loading ? (
@@ -531,9 +535,11 @@ function ProjectsTable({
         <div className="flex flex-col items-center py-16 text-center">
           <FolderKanban className="size-8 text-muted-foreground" />
           <p className="mt-3 text-sm text-muted-foreground">No projects yet.</p>
-          <Button className="mt-3" onClick={openCreate}>
-            Create Project
-          </Button>
+          {canEdit && (
+            <Button className="mt-3" onClick={openCreate}>
+              Create Project
+            </Button>
+          )}
         </div>
       ) : (
         <>
@@ -543,7 +549,6 @@ function ProjectsTable({
               <TableRow>
                 <SortableTableHead sortKey="name" currentSortKey={sortKey} currentDirection={sortDirection} onSort={handleSort}>Name</SortableTableHead>
                 <TableHead>Description</TableHead>
-                <TableHead>Public Key</TableHead>
                 <SortableTableHead sortKey="created" currentSortKey={sortKey} currentDirection={sortDirection} onSort={handleSort}>Created at</SortableTableHead>
                 <TableHead className="w-[50px]" />
               </TableRow>
@@ -561,43 +566,40 @@ function ProjectsTable({
                   <TableCell className="text-sm text-muted-foreground max-w-[200px] truncate">
                     {p.description || "—"}
                   </TableCell>
-                  <TableCell>
-                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded">
-                      {(p as any).publicKey ?? p.public_key}
-                    </code>
-                  </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {formatDate((p as any).createdAt ?? p.created_at)}
                   </TableCell>
-                  <TableCell onClick={(e) => e.stopPropagation()}>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="size-8">
-                          <MoreHorizontal className="size-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => openEdit(p)}>Edit</DropdownMenuItem>
-                        <DropdownMenuSub>
-                          <DropdownMenuSubTrigger className="whitespace-nowrap">
-                            Recording
-                          </DropdownMenuSubTrigger>
-                          <DropdownMenuSubContent>
-                            <DropdownMenuItem
-                              className="whitespace-nowrap"
-                              onClick={() => setRecordingSettingsProject({ id: p.id, name: p.name })}
-                            >
-                              Settings
-                            </DropdownMenuItem>
-                          </DropdownMenuSubContent>
-                        </DropdownMenuSub>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem className="text-red-600" onClick={() => handleDelete(p)}>
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
+                  {canEdit && (
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="size-8">
+                            <MoreHorizontal className="size-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => openEdit(p)}>Edit</DropdownMenuItem>
+                          <DropdownMenuSub>
+                            <DropdownMenuSubTrigger className="whitespace-nowrap">
+                              Recording
+                            </DropdownMenuSubTrigger>
+                            <DropdownMenuSubContent>
+                              <DropdownMenuItem
+                                className="whitespace-nowrap"
+                                onClick={() => setRecordingSettingsProject({ id: p.id, name: p.name })}
+                              >
+                                Settings
+                              </DropdownMenuItem>
+                            </DropdownMenuSubContent>
+                          </DropdownMenuSub>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem className="text-red-600" onClick={() => handleDelete(p)}>
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  )}
                 </TableRow>
               ))}
             </TableBody>

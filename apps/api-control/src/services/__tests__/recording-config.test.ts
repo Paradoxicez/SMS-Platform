@@ -86,7 +86,7 @@ const MOCK_CAMERA_CONFIG = {
   id: "cam-config-1",
   scopeType: "camera",
   scopeId: "cam-uuid",
-  mode: "event_based",
+  mode: "scheduled",
   retentionDays: 7,
   format: "mkv",
   resolution: "480p",
@@ -139,7 +139,7 @@ describe("recording-config service", () => {
 
       const config = await resolveEffectiveConfig("tenant-1", "cam-uuid");
       expect(config.inheritedFrom).toBe("camera");
-      expect(config.mode).toBe("event_based");
+      expect(config.mode).toBe("scheduled");
       expect(config.retentionDays).toBe(7);
       expect(config.format).toBe("mkv");
     });

@@ -76,7 +76,7 @@ export function RecordingTable({
 
   function handleRowClick(rec: Recording) {
     const dateStr = new Date(rec.start_time).toISOString().split("T")[0]!
-    router.push(`/recordings/${rec.camera_id}?date=${dateStr}`)
+    router.push(`/recordings/${rec.camera_id}?date=${dateStr}&clip=${rec.id}`)
   }
 
   return (

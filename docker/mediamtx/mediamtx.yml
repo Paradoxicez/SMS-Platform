@@ -16,9 +16,11 @@ hlsVariant: fmp4
 hlsSegmentDuration: 2s
 hlsPartDuration: 200ms
 hlsSegmentCount: 3
-hlsAlwaysRemux: no
+hlsAlwaysRemux: yes
 webrtc: yes
 webrtcAddress: :8889
+playback: yes
+playbackAddress: :9996
 rtmp: no
 srt: no
 authMethod: internal

@@ -220,13 +220,13 @@ export interface EffectivePolicy {
   rate_limit_per_min: number;
   viewer_concurrency_limit: number;
   domain_allowlist: string[] | null;
-  source: "camera" | "project" | "system";
+  source: "camera" | "site" | "project" | "system";
   policy_id?: string;
 }
 
 /**
  * Resolve the effective policy for a camera.
- * Resolution order: camera.policy_id -> project.default_policy_id -> system defaults
+ * Resolution order: camera → site → project → system defaults
  */
 export async function getEffectivePolicy(
   cameraId: string,
@@ -245,24 +245,25 @@ export async function getEffectivePolicy(
       where: eq(policies.id, camera.policyId),
     });
     if (policy) {
-      return {
-        ttl_min: policy.ttlMin,
-        ttl_max: policy.ttlMax,
-        ttl_default: policy.ttlDefault,
-        rate_limit_per_min: policy.rateLimitPerMin,
-        viewer_concurrency_limit: policy.viewerConcurrencyLimit,
-        domain_allowlist: policy.domainAllowlist,
-        source: "camera",
-        policy_id: policy.id,
-      };
+      return policyToEffective(policy, "camera");
     }
   }
 
-  // 2. Project-level default policy (camera -> site -> project)
+  // 2. Site-level default policy
   const site = await db.query.sites.findFirst({
     where: eq(sites.id, camera.siteId),
   });
 
+  if (site?.defaultPolicyId) {
+    const policy = await db.query.policies.findFirst({
+      where: eq(policies.id, site.defaultPolicyId),
+    });
+    if (policy) {
+      return policyToEffective(policy, "site");
+    }
+  }
+
+  // 3. Project-level default policy
   if (site) {
     const project = await db.query.projects.findFirst({
       where: eq(projects.id, site.projectId),
@@ -273,22 +274,29 @@ export async function getEffectivePolicy(
         where: eq(policies.id, project.defaultPolicyId),
       });
       if (policy) {
-        return {
-          ttl_min: policy.ttlMin,
-          ttl_max: policy.ttlMax,
-          ttl_default: policy.ttlDefault,
-          rate_limit_per_min: policy.rateLimitPerMin,
-          viewer_concurrency_limit: policy.viewerConcurrencyLimit,
-          domain_allowlist: policy.domainAllowlist,
-          source: "project",
-          policy_id: policy.id,
-        };
+        return policyToEffective(policy, "project");
       }
     }
   }
 
-  // 3. System defaults
+  // 4. System defaults
   return { ...SYSTEM_DEFAULTS, source: "system" };
+}
+
+function policyToEffective(
+  policy: { id: string; ttlMin: number; ttlMax: number; ttlDefault: number; rateLimitPerMin: number; viewerConcurrencyLimit: number; domainAllowlist: string[] | null },
+  source: EffectivePolicy["source"],
+): EffectivePolicy {
+  return {
+    ttl_min: policy.ttlMin,
+    ttl_max: policy.ttlMax,
+    ttl_default: policy.ttlDefault,
+    rate_limit_per_min: policy.rateLimitPerMin,
+    viewer_concurrency_limit: policy.viewerConcurrencyLimit,
+    domain_allowlist: policy.domainAllowlist,
+    source,
+    policy_id: policy.id,
+  };
 }
 
 // ─── List Policies ──────────────────────────────────────────────────────────

@@ -48,6 +48,13 @@ export function EditCameraDialog({
   const [tags, setTags] = useState("");
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; error?: string; detail?: string } | null>(null);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analyzeResult, setAnalyzeResult] = useState<{
+    codec: string | null;
+    resolution: string | null;
+    fps: number | null;
+    audio: string | null;
+  } | null>(null);
 
   // Populate form when camera changes or dialog opens
   useEffect(() => {
@@ -71,6 +78,22 @@ export function EditCameraDialog({
     }
     setTestResult(null);
   }, [open, camera]);
+
+  const handleAnalyze = useCallback(async () => {
+    if (!streamUrl || !streamUrl.startsWith("rtsp://")) return;
+    setAnalyzing(true);
+    try {
+      const res = await apiClient.post<{ data: { codec: string | null; resolution: string | null; fps: number | null; audio: string | null } }>(
+        "/cameras/analyze",
+        { rtsp_url: streamUrl },
+      );
+      setAnalyzeResult(res.data);
+    } catch {
+      setAnalyzeResult(null);
+    } finally {
+      setAnalyzing(false);
+    }
+  }, [streamUrl]);
 
   const handleTestConnection = useCallback(async () => {
     if (!streamUrl) return;
@@ -203,6 +226,7 @@ export function EditCameraDialog({
                 onChange={(e) => {
                   setStreamUrl(e.target.value);
                   setTestResult(null);
+                  setAnalyzeResult(null);
                 }}
                 className="font-mono text-sm flex-1"
               />
@@ -230,10 +254,42 @@ export function EditCameraDialog({
                 </div>
               </div>
             )}
-            {!testResult && (
+            {!testResult && !analyzeResult && !analyzing && (
               <p className="text-xs text-muted-foreground">
                 Supports rtsp:// and srt:// protocols
               </p>
+            )}
+            {(analyzing || analyzeResult) && (
+              <div className="rounded-md border p-2 text-xs space-y-1">
+                {analyzing ? (
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <Loader2 className="size-3.5 animate-spin" />
+                    Analyzing stream source...
+                  </div>
+                ) : analyzeResult?.codec ? (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium">Source Info</span>
+                      <Button type="button" variant="ghost" size="sm" className="h-5 text-[10px] px-1.5" onClick={handleAnalyze}>
+                        Re-analyze
+                      </Button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-muted-foreground">
+                      <span>Codec: <span className="text-foreground font-medium">{analyzeResult.codec}</span></span>
+                      <span>Resolution: <span className="text-foreground font-medium">{analyzeResult.resolution ?? "Unknown"}</span></span>
+                      {analyzeResult.fps && <span>FPS: <span className="text-foreground font-medium">{analyzeResult.fps}</span></span>}
+                      <span>Audio: <span className="text-foreground font-medium">{analyzeResult.audio ?? "None"}</span></span>
+                    </div>
+                    {analyzeResult.codec === "H265" && (
+                      <p className="text-yellow-600 font-medium mt-1">
+                        H265 detected — auto transcode to H264 will be enabled
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-muted-foreground">Could not detect stream info.</p>
+                )}
+              </div>
             )}
           </div>
 

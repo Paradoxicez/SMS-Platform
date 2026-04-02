@@ -25,7 +25,7 @@ export type PlaybackSession = z.infer<typeof playbackSessionSchema>;
 
 export const createPlaybackSessionSchema = z.object({
   camera_id: z.string().uuid(),
-  ttl: z.number().int().min(60).max(300),
+  ttl: z.number().int().min(1).optional(),
   embed_origin: z.string().optional(),
 });
 
@@ -35,7 +35,7 @@ export type CreatePlaybackSessionInput = z.infer<
 
 export const batchCreatePlaybackSessionSchema = z.object({
   camera_ids: z.array(z.string().uuid()).min(1),
-  ttl: z.number().int().min(60).max(300),
+  ttl: z.number().int().min(1).optional(),
   embed_origin: z.string().optional(),
 });
 

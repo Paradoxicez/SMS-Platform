@@ -9,8 +9,11 @@ import { AuthSessionProvider } from "@/components/session-provider";
 const ibmPlexSans = IBM_Plex_Sans({ subsets: ["latin"], variable: "--font-sans" });
 
 export const metadata: Metadata = {
-  title: "CCTV Platform Console",
-  description: "B2B CCTV Streaming Platform management console",
+  title: "SMS Platform",
+  description: "Surveillance Management System — CCTV streaming, recording, and monitoring platform",
+  icons: {
+    icon: "/icon.svg",
+  },
 };
 
 export default function RootLayout({

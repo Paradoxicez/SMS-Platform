@@ -4,6 +4,9 @@ import { redis } from "../lib/redis";
  * T277: Rate analytics service
  *
  * Aggregates API usage data from Redis rate-limit keys.
+ * Key patterns:
+ *   ratelimit:{tenantId}:{apiClientId}:{min|hour|day}:{timestamp} — per-window counters
+ *   apistats:{tenantId}:endpoint:{path} — per-endpoint daily counters
  */
 
 interface ApiUsageResult {
@@ -24,10 +27,9 @@ export async function getApiUsage(
   let reqPerMin = 0;
   let reqPerHour = 0;
   let reqPerDay = 0;
-  const endpointCounts = new Map<string, number>();
 
   try {
-    // Scan for rate limit keys matching the tenant
+    // Scan rate-limit keys for request counts
     const keys: string[] = [];
     let cursor = "0";
 
@@ -54,16 +56,6 @@ export async function getApiUsage(
       } else if (key.includes(":day:")) {
         reqPerDay += count;
       }
-
-      // Extract endpoint from key pattern: ratelimit:tenantId:endpoint:window:timestamp
-      const parts = key.split(":");
-      if (parts.length >= 3) {
-        const endpoint = parts.slice(2, -2).join(":") || "unknown";
-        endpointCounts.set(
-          endpoint,
-          (endpointCounts.get(endpoint) ?? 0) + count,
-        );
-      }
     }
   } catch (err) {
     console.error(
@@ -74,6 +66,35 @@ export async function getApiUsage(
         error: err instanceof Error ? err.message : String(err),
       }),
     );
+  }
+
+  // Scan endpoint stats
+  const endpointCounts = new Map<string, number>();
+  try {
+    const endpointPrefix = `apistats:${tenantId}:endpoint:`;
+    let cursor = "0";
+    const endpointKeys: string[] = [];
+
+    do {
+      const [nextCursor, batch] = await redis.scan(
+        cursor,
+        "MATCH",
+        `${endpointPrefix}*`,
+        "COUNT",
+        100,
+      );
+      cursor = nextCursor;
+      endpointKeys.push(...batch);
+    } while (cursor !== "0");
+
+    for (const key of endpointKeys) {
+      const value = await redis.get(key);
+      const count = parseInt(value ?? "0", 10);
+      const endpoint = key.replace(endpointPrefix, "");
+      endpointCounts.set(endpoint, count);
+    }
+  } catch {
+    // Best-effort
   }
 
   // Sort endpoints by count descending, take top 5

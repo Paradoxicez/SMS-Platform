@@ -9,6 +9,8 @@ import { Separator } from "@/components/ui/separator";
 import { apiClient, type DashboardStats } from "@/lib/api-client";
 import { OnboardingWizard } from "@/components/onboarding/wizard";
 import { SystemResources } from "@/components/dashboard/system-resources";
+import { BandwidthChart } from "@/components/dashboard/bandwidth-chart";
+import { ApiRequestsChart } from "@/components/dashboard/api-requests-chart";
 import {
   Camera,
   Wifi,
@@ -17,30 +19,8 @@ import {
   PlayCircle,
   ArrowUpRight,
   Rocket,
-  FolderKanban,
-  Building2,
 } from "lucide-react";
-import { formatTime } from "@/lib/format-date";
 import type { Camera as CameraType } from "@repo/types";
-
-interface AuditEvent {
-  id: string;
-  timestamp: string;
-  event_type?: string;
-  eventType?: string;
-  actor_type?: string;
-  actorType?: string;
-  resource_type?: string;
-  resourceType?: string;
-}
-
-function eventBadgeVariant(eventType?: string) {
-  if (!eventType) return "secondary" as const;
-  if (eventType.startsWith("session.")) return "default" as const;
-  if (eventType.startsWith("camera.")) return "secondary" as const;
-  if (eventType.includes("denied")) return "destructive" as const;
-  return "outline" as const;
-}
 
 // ─── Dashboard Page ────────────────────────────────────────────────────────────
 
@@ -54,9 +34,6 @@ export default function DashboardPage() {
   });
   const [loading, setLoading] = useState(true);
   const [problemCameras, setProblemCameras] = useState<CameraType[]>([]);
-  const [recentEvents, setRecentEvents] = useState<AuditEvent[]>([]);
-  const [projectCount, setProjectCount] = useState(0);
-  const [siteCount, setSiteCount] = useState(0);
   const [onboardingCompleted, setOnboardingCompleted] = useState<boolean | null>(null);
   const [showWizard, setShowWizard] = useState(false);
   const [onboardingSkipped, setOnboardingSkipped] = useState(false);
@@ -130,28 +107,26 @@ export default function DashboardPage() {
       })
       .catch(() => {});
 
-    // Recent audit events
-    apiClient
-      .get<{ data: AuditEvent[] }>("/audit/events?per_page=5")
-      .then((res) => setRecentEvents(Array.isArray(res.data) ? res.data : []))
-      .catch(() => {});
-
-    // Project + site counts
-    apiClient.listProjects(1, 1)
-      .then((res) => setProjectCount(res.pagination?.total ?? 0))
-      .catch(() => {});
-
-    apiClient.get<{ data: unknown[]; pagination: { total: number } }>("/sites?per_page=1")
-      .then((res) => setSiteCount(res.pagination?.total ?? 0))
-      .catch(() => setSiteCount(0));
+    // Poll viewer count every 5 seconds
+    function fetchViewers() {
+      apiClient
+        .get<{ data: { total_viewers: number; per_camera: Record<string, number> } }>("/cameras/status/viewers")
+        .then((res) => {
+          setStats((prev) => ({ ...prev, active_sessions: res.data.total_viewers }));
+        })
+        .catch(() => {});
+    }
+    fetchViewers();
+    const viewerInterval = setInterval(fetchViewers, 5000);
+    return () => clearInterval(viewerInterval);
   }, []);
 
   const statCards = [
-    { label: "Total Cameras", value: stats.total_cameras, icon: Camera, sub: "Registered devices" },
-    { label: "Online", value: stats.online_count, icon: Wifi, sub: "Streaming now", accent: "text-emerald-600", dot: "bg-emerald-500" },
-    { label: "Offline", value: stats.offline_count, icon: WifiOff, sub: "Disconnected", accent: "text-red-500", dot: "bg-red-500" },
-    { label: "Degraded", value: stats.degraded_count, icon: AlertTriangle, sub: "Needs attention", accent: "text-amber-500", dot: "bg-amber-500" },
-    { label: "Active Sessions", value: stats.active_sessions, icon: PlayCircle, sub: "Viewers connected" },
+    { label: "Total Cameras", value: stats.total_cameras, icon: Camera, sub: "Registered devices", href: "/cameras" },
+    { label: "Online", value: stats.online_count, icon: Wifi, sub: "Streaming now", accent: "text-emerald-600", dot: "bg-emerald-500", href: "/cameras?status=online" },
+    { label: "Offline", value: stats.offline_count, icon: WifiOff, sub: "Disconnected", accent: "text-red-500", dot: "bg-red-500", href: "/cameras?status=offline" },
+    { label: "Degraded", value: stats.degraded_count, icon: AlertTriangle, sub: "Needs attention", accent: "text-amber-500", dot: "bg-amber-500", href: "/cameras?status=degraded" },
+    { label: "Live Viewers", value: stats.active_sessions, icon: PlayCircle, sub: "Watching streams now", href: "/cameras?status=online" },
   ];
 
   return (
@@ -179,27 +154,29 @@ export default function DashboardPage() {
       {/* Row 1: Stat Cards */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         {statCards.map((s) => (
-          <Card key={s.label} className="relative overflow-hidden">
-            <CardContent className="px-4 py-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{s.label}</span>
-                <s.icon className="size-4 text-muted-foreground/50" />
-              </div>
-              <div className="mt-1 flex items-baseline gap-2">
-                <span className={`text-2xl font-semibold tabular-nums ${s.accent ?? ""}`}>
-                  {loading ? "--" : s.value}
-                </span>
-                {s.dot && <div className={`size-1.5 rounded-full ${s.dot} animate-pulse`} />}
-              </div>
-              <p className="mt-0.5 text-xs text-muted-foreground">{s.sub}</p>
-            </CardContent>
-          </Card>
+          <a key={s.label} href={s.href}>
+            <Card className="relative overflow-hidden hover:shadow-md transition-shadow cursor-pointer">
+              <CardContent className="px-4 py-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{s.label}</span>
+                  <s.icon className="size-4 text-muted-foreground/50" />
+                </div>
+                <div className="mt-1 flex items-baseline gap-2">
+                  <span className={`text-2xl font-semibold tabular-nums ${s.accent ?? ""}`}>
+                    {loading ? "--" : s.value}
+                  </span>
+                  {s.dot && <div className={`size-1.5 rounded-full ${s.dot} animate-pulse`} />}
+                </div>
+                <p className="mt-0.5 text-xs text-muted-foreground">{s.sub}</p>
+              </CardContent>
+            </Card>
+          </a>
         ))}
       </div>
 
-      {/* Row 2: Camera Status + Project Summary + Recent Events (3 equal cols) */}
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-3 flex-1 min-h-0">
-        {/* Camera Status */}
+      {/* Row 2: Camera Status (left, full height) + Bandwidth + API Usage (right, stacked) */}
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-[2fr_3fr]">
+        {/* Left: Camera Status — stretches full height */}
         <Card className="flex flex-col overflow-hidden">
           <CardHeader className="pb-3 shrink-0">
             <div className="flex items-center justify-between">
@@ -210,7 +187,7 @@ export default function DashboardPage() {
             </div>
           </CardHeader>
           <Separator />
-          <CardContent className="p-0">
+          <CardContent className="p-0 flex-1">
             {problemCameras.length === 0 ? (
               <div className="flex items-center gap-3 px-6 py-4">
                 <div className="rounded-full bg-emerald-50 p-2">
@@ -223,7 +200,7 @@ export default function DashboardPage() {
               </div>
             ) : (
               <div className="divide-y">
-                {problemCameras.slice(0, 5).map((cam) => (
+                {problemCameras.slice(0, 10).map((cam) => (
                   <a
                     key={cam.id}
                     href="/cameras"
@@ -243,89 +220,11 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        {/* Project Summary */}
-        <Card className="flex flex-col overflow-hidden">
-          <CardHeader className="pb-3 shrink-0">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-base">Project Summary</CardTitle>
-              <a href="/projects" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
-                View all <ArrowUpRight className="size-3" />
-              </a>
-            </div>
-          </CardHeader>
-          <Separator />
-          <CardContent className="p-0">
-            <div className="divide-y">
-              <a href="/projects" className="flex items-center justify-between px-6 py-2.5 hover:bg-muted/50 transition-colors">
-                <div className="flex items-center gap-2">
-                  <FolderKanban className="size-4 text-muted-foreground" />
-                  <span className="text-sm">Projects</span>
-                </div>
-                <span className="text-sm font-medium tabular-nums">{projectCount}</span>
-              </a>
-              <div className="flex items-center justify-between px-6 py-2.5">
-                <div className="flex items-center gap-2">
-                  <Building2 className="size-4 text-muted-foreground" />
-                  <span className="text-sm">Sites</span>
-                </div>
-                <span className="text-sm font-medium tabular-nums">{siteCount}</span>
-              </div>
-              <a href="/cameras" className="flex items-center justify-between px-6 py-2.5 hover:bg-muted/50 transition-colors">
-                <div className="flex items-center gap-2">
-                  <Camera className="size-4 text-muted-foreground" />
-                  <span className="text-sm">Cameras</span>
-                </div>
-                <span className="text-sm font-medium tabular-nums">{stats.total_cameras}</span>
-              </a>
-              <div className="flex items-center justify-between px-6 py-2.5">
-                <div className="flex items-center gap-2">
-                  <PlayCircle className="size-4 text-muted-foreground" />
-                  <span className="text-sm">Active Sessions</span>
-                </div>
-                <span className="text-sm font-medium tabular-nums">{stats.active_sessions}</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Recent Events */}
-        <Card className="flex flex-col overflow-hidden">
-          <CardHeader className="pb-3 shrink-0">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-base">Recent Events</CardTitle>
-              <a href="/audit" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
-                View all <ArrowUpRight className="size-3" />
-              </a>
-            </div>
-          </CardHeader>
-          <Separator />
-          <CardContent className="p-0">
-            {recentEvents.length === 0 ? (
-              <div className="px-6 py-4">
-                <p className="text-sm text-muted-foreground">No recent events</p>
-              </div>
-            ) : (
-              <div className="divide-y">
-                {recentEvents.map((event) => {
-                  const eventType = event.event_type ?? event.eventType ?? "unknown";
-                  return (
-                    <div key={event.id} className="flex items-center gap-3 px-6 py-2.5">
-                      <Badge variant={eventBadgeVariant(eventType)} className="text-[10px] shrink-0">
-                        {eventType}
-                      </Badge>
-                      <span className="flex-1 text-xs text-muted-foreground truncate">
-                        {event.resource_type ?? event.resourceType ?? ""}
-                      </span>
-                      <time className="text-[11px] text-muted-foreground tabular-nums whitespace-nowrap">
-                        {formatTime(event.timestamp)}
-                      </time>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        {/* Right: Bandwidth (top) + API Usage (bottom) */}
+        <div className="flex flex-col gap-3">
+          <BandwidthChart />
+          <ApiRequestsChart />
+        </div>
       </div>
 
       {/* Row 3: System Resources (Realtime) */}

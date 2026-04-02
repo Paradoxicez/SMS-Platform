@@ -1,29 +1,24 @@
 import { randomUUID, createHmac } from "node:crypto";
-import { eq } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { db } from "../db/client";
 import { cameras } from "../db/schema/cameras";
-import { policies } from "../db/schema/policies";
-import { projects } from "../db/schema/projects";
-import { sites } from "../db/schema/sites";
 import { playbackSessions } from "../db/schema/playback-sessions";
 import { redis } from "../lib/redis";
 import { AppError } from "../middleware/error-handler";
 import { logAuditEvent } from "./audit";
 import { getCameraProfileSettings } from "./stream-pipeline";
 import { getStreamSecurityConfig, signStreamToken } from "./stream-security";
+import { getEffectivePolicy } from "./policies";
 
-const SESSION_SECRET =
-  process.env["SESSION_SECRET"] ?? "dev-session-secret-change-me";
+if (!process.env["SESSION_SECRET"]) {
+  throw new Error("SESSION_SECRET environment variable is required");
+}
+const SESSION_SECRET = process.env["SESSION_SECRET"];
 const ORIGIN_BASE_URL =
   process.env["ORIGIN_BASE_URL"] ?? "http://localhost:8888";
 
-/** System-level defaults when no policy is found */
-const SYSTEM_DEFAULTS = {
-  ttlMin: 60,
-  ttlMax: 300,
-  ttlDefault: 120,
-  domainAllowlist: null as string[] | null,
-};
+/** System-level defaults for internal sessions (no policy enforcement) */
+const SYSTEM_DEFAULTS_TTL = 300;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -33,70 +28,33 @@ function signToken(jti: string, cameraId: string, expiresAt: string): string {
     .digest("hex");
 }
 
-interface EffectivePolicy {
-  ttlMin: number;
-  ttlMax: number;
-  ttlDefault: number;
-  domainAllowlist: string[] | null;
+/**
+ * Resolve HLS path for external API (uses profile transcode).
+ * - Transcode (h264) → cam-{id}-hls
+ * - Passthrough → cam-{id} (or cam-{id}-raw if H265)
+ */
+function resolveExternalPath(cameraId: string, profile: { outputCodec: string }, sourceCodec: string | null): string {
+  if (profile.outputCodec !== "passthrough") {
+    return `cam-${cameraId}-hls`;
+  }
+  // Passthrough but H265 → use -raw (auto transcoded to H264)
+  return sourceCodec === "H265" ? `cam-${cameraId}-raw` : `cam-${cameraId}`;
 }
 
 /**
- * Resolve the effective policy for a camera:
- *   camera.policyId -> project.defaultPolicyId -> system defaults
+ * Resolve HLS path for internal preview.
+ * - H265 camera → cam-{id}-raw (auto transcoded)
+ * - H264 camera → cam-{id} (original stream)
  */
-async function resolvePolicy(camera: {
-  policyId: string | null;
-  siteId: string;
-}): Promise<EffectivePolicy> {
-  // 1. Camera-level policy
-  if (camera.policyId) {
-    const policy = await db.query.policies.findFirst({
-      where: eq(policies.id, camera.policyId),
-    });
-    if (policy) {
-      return {
-        ttlMin: policy.ttlMin,
-        ttlMax: policy.ttlMax,
-        ttlDefault: policy.ttlDefault,
-        domainAllowlist: policy.domainAllowlist,
-      };
-    }
-  }
-
-  // 2. Project-level default policy (camera -> site -> project)
-  const site = await db.query.sites.findFirst({
-    where: eq(sites.id, camera.siteId),
-  });
-
-  if (site) {
-    const project = await db.query.projects.findFirst({
-      where: eq(projects.id, site.projectId),
-    });
-
-    if (project?.defaultPolicyId) {
-      const policy = await db.query.policies.findFirst({
-        where: eq(policies.id, project.defaultPolicyId),
-      });
-      if (policy) {
-        return {
-          ttlMin: policy.ttlMin,
-          ttlMax: policy.ttlMax,
-          ttlDefault: policy.ttlDefault,
-          domainAllowlist: policy.domainAllowlist,
-        };
-      }
-    }
-  }
-
-  // 3. System defaults
-  return { ...SYSTEM_DEFAULTS };
+function resolvePreviewPath(cameraId: string, sourceCodec: string | null): string {
+  return sourceCodec === "H265" ? `cam-${cameraId}-raw` : `cam-${cameraId}`;
 }
 
 // ─── T071: Issue Session ──────────────────────────────────────────────────────
 
 interface IssueSessionParams {
   cameraId: string;
-  ttl: number;
+  ttl?: number;
   embedOrigin?: string;
   tenantId: string;
   apiClientId: string;
@@ -115,8 +73,7 @@ interface SessionResult {
 export async function issueSession(
   params: IssueSessionParams,
 ): Promise<SessionResult> {
-  const { cameraId, ttl, embedOrigin, tenantId, apiClientId, viewerIp } =
-    params;
+  const { cameraId, embedOrigin, tenantId, apiClientId, viewerIp } = params;
 
   // Validate camera exists and is online
   const camera = await db.query.cameras.findFirst({
@@ -131,24 +88,26 @@ export async function issueSession(
     throw new AppError("CAMERA_OFFLINE", "Camera is not online", 422);
   }
 
-  // Resolve effective policy
-  const policy = await resolvePolicy(camera);
+  // Resolve effective policy (includes all enforcement fields)
+  const policy = await getEffectivePolicy(cameraId);
+
+  // Use ttl_default when client doesn't specify TTL
+  const ttl = params.ttl ?? policy.ttl_default;
 
   // Validate TTL within policy range
-  if (ttl < policy.ttlMin || ttl > policy.ttlMax) {
+  if (ttl < policy.ttl_min || ttl > policy.ttl_max) {
     throw new AppError(
       "VALIDATION_ERROR",
-      `TTL must be between ${policy.ttlMin} and ${policy.ttlMax}`,
+      `TTL must be between ${policy.ttl_min} and ${policy.ttl_max}`,
       422,
     );
   }
 
   // T076: Domain allowlist enforcement
-  if (embedOrigin && policy.domainAllowlist && policy.domainAllowlist.length > 0) {
-    const allowed = policy.domainAllowlist.some((domain) => {
-      // Support wildcard subdomains: *.example.com
+  if (embedOrigin && policy.domain_allowlist && policy.domain_allowlist.length > 0) {
+    const allowed = policy.domain_allowlist.some((domain) => {
       if (domain.startsWith("*.")) {
-        const suffix = domain.slice(1); // .example.com
+        const suffix = domain.slice(1);
         return embedOrigin.endsWith(suffix) || embedOrigin === domain.slice(2);
       }
       return embedOrigin === domain;
@@ -165,6 +124,76 @@ export async function issueSession(
         details: { embed_origin: embedOrigin, reason: "origin_denied" },
       });
       throw new AppError("PLAYBACK_ORIGIN_DENIED", "Origin not in allowlist", 403);
+    }
+  }
+
+  // Per-policy rate limit enforcement
+  if (policy.rate_limit_per_min > 0) {
+    const windowSeconds = 60;
+    const now = Math.floor(Date.now() / 1000);
+    const windowTs = Math.floor(now / windowSeconds) * windowSeconds;
+    const rlKey = `policyratelimit:${apiClientId}:${cameraId}:${windowTs}`;
+
+    try {
+      const current = await redis.incr(rlKey);
+      if (current === 1) {
+        await redis.expire(rlKey, windowSeconds);
+      }
+      if (current > policy.rate_limit_per_min) {
+        logAuditEvent({
+          tenantId,
+          actorType: "api_client",
+          actorId: apiClientId,
+          eventType: "session.denied",
+          resourceType: "camera",
+          resourceId: cameraId,
+          details: { reason: "rate_limit_exceeded", limit: policy.rate_limit_per_min },
+        });
+        throw new AppError(
+          "RATE_LIMITED",
+          `Rate limit exceeded: ${policy.rate_limit_per_min} requests per minute`,
+          429,
+        );
+      }
+    } catch (err) {
+      if (err instanceof AppError) throw err;
+      // Fail open if Redis is unavailable
+      console.error("[policy-rate-limit] Redis error, failing open");
+    }
+  }
+
+  // Viewer concurrency limit enforcement
+  if (policy.viewer_concurrency_limit > 0) {
+    const [result] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(playbackSessions)
+      .where(
+        and(
+          eq(playbackSessions.cameraId, cameraId),
+          eq(playbackSessions.status, "active"),
+          sql`${playbackSessions.expiresAt} > now()`,
+        ),
+      );
+
+    if (result && result.count >= policy.viewer_concurrency_limit) {
+      logAuditEvent({
+        tenantId,
+        actorType: "api_client",
+        actorId: apiClientId,
+        eventType: "session.denied",
+        resourceType: "camera",
+        resourceId: cameraId,
+        details: {
+          reason: "concurrency_limit_exceeded",
+          limit: policy.viewer_concurrency_limit,
+          active: result.count,
+        },
+      });
+      throw new AppError(
+        "CONCURRENCY_LIMIT",
+        `Viewer concurrency limit reached: ${policy.viewer_concurrency_limit} active viewers`,
+        429,
+      );
     }
   }
 
@@ -227,17 +256,12 @@ export async function issueSession(
     details: { camera_id: cameraId, ttl, embed_origin: embedOrigin ?? null },
   });
 
-  // Build playback URL based on profile settings + security config
+  // Build playback URL — external sessions always use HLS (browser-compatible)
   const profileSettings = await getCameraProfileSettings(cameraId, tenantId);
   const secConfig = await getStreamSecurityConfig(tenantId);
 
   let playbackUrl: string;
-  if (profileSettings.outputProtocol === "webrtc" && profileSettings.outputCodec === "passthrough") {
-    // WebRTC only — return WebRTC WHEP URL
-    const WEBRTC_BASE = process.env["WEBRTC_BASE_URL"] ?? "http://localhost:8889";
-    playbackUrl = `${WEBRTC_BASE}/cam-${cameraId}/whep`;
-  } else if (secConfig.streamSecurityEnabled) {
-    // Security enabled — use signed proxy URL
+  if (secConfig.streamSecurityEnabled) {
     const tokenExpiry = Math.floor(Date.now() / 1000) + secConfig.streamTokenExpiry;
     const streamToken = signStreamToken(jti, cameraId, tokenExpiry);
     const API_BASE = process.env["API_PUBLIC_URL"] ?? "http://localhost:3001";
@@ -246,15 +270,111 @@ export async function issueSession(
       : API_BASE;
     playbackUrl = `${baseUrl}/api/v1/stream/${streamToken}/index.m3u8`;
   } else {
-    // No security — direct MediaMTX URL
-    playbackUrl = `${ORIGIN_BASE_URL}/cam-${cameraId}-hls/index.m3u8`;
+    const externalPath = resolveExternalPath(cameraId, profileSettings, camera.sourceCodec);
+    playbackUrl = `${ORIGIN_BASE_URL}/${externalPath}/index.m3u8`;
   }
 
   return {
     session_id: jti,
     playback_url: playbackUrl,
-    protocol: profileSettings.outputProtocol,
+    protocol: "hls",
     codec: profileSettings.outputCodec,
+    expires_at: expiresAtIso,
+    ttl,
+  };
+}
+
+// ─── Internal Session (no policy enforcement) ────────────────────────────────
+
+interface IssueInternalSessionParams {
+  cameraId: string;
+  tenantId: string;
+  userId: string;
+  viewerIp?: string;
+}
+
+/**
+ * Issue a playback session for internal console-web use.
+ * Skips policy enforcement — uses system defaults only.
+ */
+export async function issueInternalSession(
+  params: IssueInternalSessionParams,
+): Promise<SessionResult> {
+  const { cameraId, tenantId, userId, viewerIp } = params;
+  const ttl = SYSTEM_DEFAULTS_TTL; // 300s default for internal
+
+  const camera = await db.query.cameras.findFirst({
+    where: eq(cameras.id, cameraId),
+  });
+
+  if (!camera) {
+    throw new AppError("NOT_FOUND", "Camera not found", 404);
+  }
+
+  if (camera.healthStatus !== "online" && camera.healthStatus !== "degraded") {
+    throw new AppError("CAMERA_OFFLINE", "Camera is not online", 422);
+  }
+
+  // No policy enforcement — internal viewers always get system defaults
+
+  const jti = randomUUID();
+
+  const replayKey = `replay:${jti}`;
+  const replayExists = await redis.exists(replayKey);
+  if (replayExists) {
+    throw new AppError(
+      "VALIDATION_ERROR",
+      "Session ID collision detected, please retry",
+      409,
+    );
+  }
+
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + ttl * 1000);
+  const expiresAtIso = expiresAt.toISOString();
+
+  const signature = signToken(jti, cameraId, expiresAtIso);
+
+  const redisKey = `session:${jti}`;
+  const redisValue = JSON.stringify({
+    camera_id: cameraId,
+    tenant_id: tenantId,
+    allowed_origins: null,
+    expires_at: expiresAtIso,
+    token_signature: signature,
+  });
+  await redis.set(redisKey, redisValue, "EX", ttl);
+
+  await db.insert(playbackSessions).values({
+    id: jti,
+    cameraId,
+    tenantId,
+    apiClientId: userId,
+    expiresAt,
+    allowedOrigins: null,
+    viewerIp: viewerIp ?? null,
+    status: "active",
+  });
+
+  logAuditEvent({
+    tenantId,
+    actorType: "user",
+    actorId: userId,
+    eventType: "session.issued",
+    resourceType: "playback_session",
+    resourceId: jti,
+    details: { camera_id: cameraId, ttl, internal: true },
+  });
+
+  // Internal preview: H265 → -raw (auto transcoded), H264 → original
+  const previewPath = resolvePreviewPath(cameraId, camera.sourceCodec);
+  const playbackUrl = `${ORIGIN_BASE_URL}/${previewPath}/index.m3u8`;
+
+  return {
+    session_id: jti,
+    playback_url: playbackUrl,
+    protocol: "hls",
+    codec: camera.sourceCodec === "H265" ? "h264" : "passthrough",
     expires_at: expiresAtIso,
     ttl,
   };
@@ -369,7 +489,7 @@ interface BatchResult {
 
 export async function batchCreateSessions(params: {
   cameraIds: string[];
-  ttl: number;
+  ttl?: number;
   embedOrigin?: string;
   tenantId: string;
   apiClientId: string;

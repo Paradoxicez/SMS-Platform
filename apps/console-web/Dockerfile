@@ -18,15 +18,15 @@ RUN pnpm build
 # Stage 2: Production
 FROM node:22-alpine AS production
 
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN addgroup -g 1001 -S nodejs && adduser -S -u 1001 -G nodejs nodejs
 
 WORKDIR /app
 
-COPY --from=builder /app/apps/console-web/.next/standalone ./
-COPY --from=builder /app/apps/console-web/.next/static apps/console-web/.next/static
-COPY --from=builder /app/apps/console-web/public apps/console-web/public
+COPY --from=builder --chown=nodejs:nodejs /app/apps/console-web/.next/standalone ./
+COPY --from=builder --chown=nodejs:nodejs /app/apps/console-web/.next/static apps/console-web/.next/static
 
 ENV NODE_ENV=production
 EXPOSE 3000
 
+USER nodejs
 CMD ["node", "apps/console-web/server.js"]

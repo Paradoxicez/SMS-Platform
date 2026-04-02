@@ -7,32 +7,6 @@ CREATE TYPE "public"."output_resolution" AS ENUM('original', '2160p', '1440p', '
 CREATE TYPE "public"."session_status" AS ENUM('active', 'expired', 'revoked');--> statement-breakpoint
 CREATE TYPE "public"."subscription_tier" AS ENUM('free', 'starter', 'pro', 'enterprise');--> statement-breakpoint
 CREATE TYPE "public"."user_role" AS ENUM('admin', 'operator', 'developer', 'viewer');--> statement-breakpoint
-CREATE TABLE IF NOT EXISTS "ai_events" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"tenant_id" uuid NOT NULL,
-	"integration_id" uuid NOT NULL,
-	"camera_id" uuid NOT NULL,
-	"event_type" varchar(100) NOT NULL,
-	"confidence" double precision,
-	"metadata" jsonb,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL
-);
---> statement-breakpoint
-ALTER TABLE "ai_events" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
-CREATE TABLE IF NOT EXISTS "ai_integrations" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"tenant_id" uuid NOT NULL,
-	"name" varchar(255) NOT NULL,
-	"endpoint_url" text NOT NULL,
-	"api_key_encrypted" text,
-	"event_types" jsonb NOT NULL,
-	"cameras" jsonb NOT NULL,
-	"interval_seconds" integer DEFAULT 30 NOT NULL,
-	"is_active" boolean DEFAULT true NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL
-);
---> statement-breakpoint
-ALTER TABLE "ai_integrations" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "api_clients" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"tenant_id" uuid NOT NULL,
@@ -86,17 +60,6 @@ CREATE TABLE IF NOT EXISTS "cameras" (
 );
 --> statement-breakpoint
 ALTER TABLE "cameras" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
-CREATE TABLE IF NOT EXISTS "forwarding_rules" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"tenant_id" uuid NOT NULL,
-	"camera_id" uuid NOT NULL,
-	"camera_name" varchar(255),
-	"target_url" text NOT NULL,
-	"status" varchar(20) DEFAULT 'active' NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
-);
---> statement-breakpoint
 CREATE TABLE IF NOT EXISTS "invitations" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"tenant_id" uuid NOT NULL,
@@ -359,23 +322,6 @@ CREATE TABLE IF NOT EXISTS "webhooks" (
 );
 --> statement-breakpoint
 ALTER TABLE "webhooks" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
-DO $$ BEGIN
- ALTER TABLE "ai_events" ADD CONSTRAINT "ai_events_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;
-EXCEPTION
- WHEN duplicate_object THEN null;
-END $$;
---> statement-breakpoint
-DO $$ BEGIN
- ALTER TABLE "ai_events" ADD CONSTRAINT "ai_events_integration_id_ai_integrations_id_fk" FOREIGN KEY ("integration_id") REFERENCES "public"."ai_integrations"("id") ON DELETE cascade ON UPDATE no action;
-EXCEPTION
- WHEN duplicate_object THEN null;
-END $$;
---> statement-breakpoint
-DO $$ BEGIN
- ALTER TABLE "ai_integrations" ADD CONSTRAINT "ai_integrations_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE cascade ON UPDATE no action;
-EXCEPTION
- WHEN duplicate_object THEN null;
-END $$;
 --> statement-breakpoint
 DO $$ BEGIN
  ALTER TABLE "api_clients" ADD CONSTRAINT "api_clients_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE no action ON UPDATE no action;
@@ -427,18 +373,6 @@ END $$;
 --> statement-breakpoint
 DO $$ BEGIN
  ALTER TABLE "cameras" ADD CONSTRAINT "cameras_profile_id_stream_profiles_id_fk" FOREIGN KEY ("profile_id") REFERENCES "public"."stream_profiles"("id") ON DELETE no action ON UPDATE no action;
-EXCEPTION
- WHEN duplicate_object THEN null;
-END $$;
---> statement-breakpoint
-DO $$ BEGIN
- ALTER TABLE "forwarding_rules" ADD CONSTRAINT "forwarding_rules_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE no action ON UPDATE no action;
-EXCEPTION
- WHEN duplicate_object THEN null;
-END $$;
---> statement-breakpoint
-DO $$ BEGIN
- ALTER TABLE "forwarding_rules" ADD CONSTRAINT "forwarding_rules_camera_id_cameras_id_fk" FOREIGN KEY ("camera_id") REFERENCES "public"."cameras"("id") ON DELETE no action ON UPDATE no action;
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;

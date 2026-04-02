@@ -115,7 +115,6 @@ import {
   disableRecording,
   handleRecordingEvent,
   createVodSession,
-  triggerEventRecording,
 } from "../services/recordings";
 import { isWithinSchedule } from "../lib/recording-schedule";
 import { LocalStorageProvider } from "../lib/recording-storage";
@@ -243,20 +242,7 @@ describe("Recording Integration", () => {
     });
   });
 
-  describe("6. Event-based recording trigger", () => {
-    it("should reject trigger when mode is not event_based", async () => {
-      const result = await triggerEventRecording({
-        camera_id: "cam-1",
-        tenant_id: "tenant-1",
-        event_type: "motion_detected",
-      });
-      // Default config mode is "continuous", not "event_based"
-      expect(result.triggered).toBe(false);
-      expect(result.reason).toContain("not event_based");
-    });
-  });
-
-  describe("7. Storage provider (local)", () => {
+  describe("6. Storage provider (local)", () => {
     it("should generate correct signed URL", async () => {
       const storage = new LocalStorageProvider("./recordings");
       const url = await storage.getSignedUrl("cam-1/test.fmp4", 3600);

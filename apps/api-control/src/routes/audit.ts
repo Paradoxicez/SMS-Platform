@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { requireRole } from "../middleware/rbac";
+import { requireFeature } from "../middleware/feature-gate";
 import {
   queryAuditEvents,
   exportAuditEvents,
@@ -8,6 +9,9 @@ import {
 import type { AppEnv } from "../types";
 
 const auditRouter = new Hono<AppEnv>();
+
+// All audit routes require the "audit_log" feature
+auditRouter.use("/audit/*", requireFeature("audit_log"));
 
 // GET /audit/events — search events with query params
 auditRouter.get(

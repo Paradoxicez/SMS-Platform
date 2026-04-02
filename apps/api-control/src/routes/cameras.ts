@@ -10,6 +10,7 @@ import { requireCameraSlot } from "../middleware/feature-gate";
 import { requireValidLicense } from "../middleware/license";
 import type { AppEnv } from "../types";
 import { AppError } from "../middleware/error-handler";
+import { notifyTenantUsers } from "../services/notifications";
 import { logAuditEvent } from "../services/audit";
 import { redis } from "../lib/redis";
 import {
@@ -54,6 +55,13 @@ camerasRouter.post(
       data,
       actorId,
       sourceIp: c.req.header("x-forwarded-for") ?? c.req.header("x-real-ip"),
+    });
+
+    notifyTenantUsers(tenantId, {
+      type: "camera.created",
+      title: "New camera added",
+      message: `Camera '${data.name}' was added to the system.`,
+      link: "/cameras",
     });
 
     return c.json(
@@ -215,6 +223,34 @@ camerasRouter.patch(
   },
 );
 
+// POST /cameras/analyze — detect RTSP source info (codec, resolution, fps, audio)
+camerasRouter.post(
+  "/cameras/analyze",
+  requireRole("admin", "operator"),
+  async (c) => {
+    const body = await c.req.json();
+    const rtspUrl = body.rtsp_url;
+
+    if (!rtspUrl || typeof rtspUrl !== "string") {
+      return c.json(
+        { error: { code: "VALIDATION_ERROR", message: "rtsp_url is required" } },
+        422,
+      );
+    }
+
+    const { analyzeRtspSource } = await import("../services/stream-pipeline");
+    const result = await analyzeRtspSource(rtspUrl);
+
+    return c.json({
+      data: result,
+      meta: {
+        request_id: crypto.randomUUID(),
+        timestamp: new Date().toISOString(),
+      },
+    });
+  },
+);
+
 // DELETE /cameras/:id — delete camera
 camerasRouter.delete(
   "/cameras/:id",
@@ -229,6 +265,13 @@ camerasRouter.delete(
       id,
       actorId,
       sourceIp: c.req.header("x-forwarded-for") ?? c.req.header("x-real-ip"),
+    });
+
+    notifyTenantUsers(tenantId, {
+      type: "camera.deleted",
+      title: "Camera removed",
+      message: `Camera '${camera.name}' was removed from the system.`,
+      link: "/cameras",
     });
 
     return c.json({
@@ -708,6 +751,54 @@ camerasRouter.post(
   },
 );
 
+// GET /cameras/status/viewers — real-time viewer counts from MediaMTX
+camerasRouter.get(
+  "/cameras/status/viewers",
+  requireRole("admin", "operator", "viewer"),
+  async (c) => {
+    const { mediamtxFetch } = await import("../lib/mediamtx-fetch");
+
+    try {
+      const res = await mediamtxFetch("/v3/paths/list");
+      if (!res.ok) {
+        return c.json({ data: { total_viewers: 0, per_camera: {} } });
+      }
+
+      const data = (await res.json()) as {
+        items?: { name: string; readers?: unknown[] }[];
+      };
+
+      const perCamera: Record<string, number> = {};
+      let totalViewers = 0;
+
+      for (const path of data.items ?? []) {
+        if (!path.name.startsWith("cam-") || !path.readers) continue;
+        const readers = path.readers as { type?: string }[];
+
+        // Filter out internal readers (FFmpeg transcode = rtspSession)
+        const realViewers = readers.filter(
+          (r) => r.type !== "rtspSession",
+        ).length;
+
+        if (realViewers === 0) continue;
+
+        const cameraId = path.name.endsWith("-hls")
+          ? path.name.replace("cam-", "").replace("-hls", "")
+          : path.name.replace("cam-", "");
+
+        perCamera[cameraId] = (perCamera[cameraId] ?? 0) + realViewers;
+        totalViewers += realViewers;
+      }
+
+      return c.json({
+        data: { total_viewers: totalViewers, per_camera: perCamera },
+      });
+    } catch {
+      return c.json({ data: { total_viewers: 0, per_camera: {} } });
+    }
+  },
+);
+
 // GET /cameras/status/stream — SSE real-time status updates
 camerasRouter.get(
   "/cameras/status/stream",
@@ -809,6 +900,7 @@ camerasRouter.post(
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           source: url,
+          sourceProtocol: "tcp",
           sourceOnDemand: false,
         }),
       });

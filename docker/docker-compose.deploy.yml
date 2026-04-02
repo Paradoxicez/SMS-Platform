@@ -1,0 +1,78 @@
+services:
+  api-control:
+    image: sms-app/api-control:latest
+    container_name: sms-api-control
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://postgres:postgres@sms-postgres:5432/sms_app
+      REDIS_URL: redis://sms-redis:6379
+      AUTH_SECRET: ${AUTH_SECRET:?AUTH_SECRET is required}
+      SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET is required}
+      INTERNAL_SECRET: ${INTERNAL_SECRET:?INTERNAL_SECRET is required}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
+      ORIGIN_BASE_URL: http://sms-mediamtx:8888
+      MEDIAMTX_API_URL: http://sms-mediamtx:9997
+      DEPLOYMENT_MODE: ${DEPLOYMENT_MODE:-onprem}
+      LICENSE_PUBLIC_KEY: ${LICENSE_PUBLIC_KEY:-}
+      RECORDING_STORAGE_PATH: /recordings
+    volumes:
+      - ./recordings:/recordings
+    ports:
+      - "3001:3001"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:3001/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks:
+      - docker_default
+
+  console-web:
+    image: sms-app/console-web:latest
+    container_name: sms-console-web
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001/api/v1}
+      API_INTERNAL_URL: http://sms-api-control:3001/api/v1
+      AUTH_SECRET: ${AUTH_SECRET:?AUTH_SECRET is required}
+      AUTH_TRUST_HOST: "true"
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
+    ports:
+      - "3000:3000"
+    depends_on:
+      api-control:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:3000/ || exit 0"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks:
+      - docker_default
+
+  data-plane-worker:
+    image: sms-app/data-plane-worker:latest
+    container_name: sms-data-plane-worker
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3002
+      REDIS_URL: redis://sms-redis:6379
+      MEDIAMTX_API_URL: http://sms-mediamtx:9997
+      SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET is required}
+      INTERNAL_SECRET: ${INTERNAL_SECRET:?INTERNAL_SECRET is required}
+    ports:
+      - "3002:3002"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:3002/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks:
+      - docker_default
+
+networks:
+  docker_default:
+    external: true

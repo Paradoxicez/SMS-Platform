@@ -6,7 +6,6 @@ import type { AppEnv } from "../types";
  * T118: Structured JSON logging middleware
  *
  * Logs every request: method, path, status, duration_ms, request_id.
- * Generates a request_id (uuid) and sets it on the context for correlation.
  */
 export const loggerMiddleware = createMiddleware<AppEnv>(async (c, next) => {
   const requestId = crypto.randomUUID();

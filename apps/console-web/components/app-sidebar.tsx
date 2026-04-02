@@ -37,50 +37,64 @@ import {
   LogOut,
   User,
   Server,
-  Forward,
   Sliders,
-  CreditCard,
   KeyRound,
-  Mail,
   Globe,
   Video,
-  BrainCircuit,
+  Settings,
+  CreditCard,
+  LifeBuoy,
 } from "lucide-react"
 
-const monitoringNav = [
+type Role = "admin" | "operator" | "developer" | "viewer"
+
+interface NavItem {
+  title: string
+  href: string
+  icon: typeof LayoutDashboard
+  roles?: Role[]       // if set, only these roles see it; if omitted, all roles see it
+  onPremOnly?: boolean
+}
+
+const monitoringNav: NavItem[] = [
   { title: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { title: "Projects", href: "/projects", icon: FolderKanban },
+  { title: "Projects", href: "/projects", icon: FolderKanban, roles: ["admin", "operator", "viewer"] },
   { title: "Cameras", href: "/cameras", icon: Camera },
   { title: "Map", href: "/map", icon: Map },
   { title: "Recordings", href: "/recordings", icon: Video },
 ]
 
-const managementNav = [
-  { title: "Policies", href: "/policies", icon: ShieldCheck },
-  { title: "Stream Profiles", href: "/profiles", icon: Sliders },
-  { title: "Audit Log", href: "/audit", icon: ClipboardList },
+const managementNav: NavItem[] = [
+  { title: "Policies", href: "/policies", icon: ShieldCheck, roles: ["admin", "operator", "developer"] },
+  { title: "Stream Profiles", href: "/profiles", icon: Sliders, roles: ["admin", "operator"] },
+  { title: "Audit Log", href: "/audit", icon: ClipboardList, roles: ["admin", "operator"] },
 ]
 
-const platformNav = [
-  { title: "API Keys", href: "/api-keys", icon: KeyRound },
-  { title: "Developer", href: "/developer", icon: Code2 },
-  { title: "Users", href: "/settings/users", icon: User },
-  { title: "Stream Engine", href: "/settings/stream-engine", icon: Server },
-  { title: "Forwarding", href: "/settings/forwarding", icon: Forward },
-  { title: "Webhooks", href: "/settings/webhooks", icon: Globe },
-  { title: "AI Integrations", href: "/settings/ai", icon: BrainCircuit },
-  { title: "Billing", href: "/billing", icon: CreditCard },
-  { title: "Email", href: "/settings/email", icon: Mail },
-  { title: "License", href: "/settings/license", icon: KeyRound, onPremOnly: true },
-] as const
+const platformNav: NavItem[] = [
+  { title: "API Keys", href: "/api-keys", icon: KeyRound, roles: ["admin", "developer"] },
+  { title: "Developer", href: "/developer", icon: Code2, roles: ["admin", "developer"] },
+  { title: "Users", href: "/settings/users", icon: User, roles: ["admin"] },
+  { title: "Stream Engine", href: "/settings/stream-engine", icon: Server, roles: ["admin"] },
+  { title: "Webhooks", href: "/settings/webhooks", icon: Globe, roles: ["admin"] },
+  { title: "License", href: "/settings/license", icon: KeyRound, roles: ["admin"], onPremOnly: true },
+]
+
+function filterByRole(items: NavItem[], role: Role, isOnPrem: boolean): NavItem[] {
+  return items.filter((item) => {
+    if (item.onPremOnly && !isOnPrem) return false
+    if (item.roles && !item.roles.includes(role)) return false
+    return true
+  })
+}
 
 export function AppSidebar() {
   const pathname = usePathname()
   const { data: session } = useSession()
   const [isOnPrem, setIsOnPrem] = useState(false)
 
+  const userRole = ((session as any)?.role as Role) ?? "viewer"
+
   useEffect(() => {
-    // Check if this is an on-prem deployment to show/hide license nav
     async function checkDeployment() {
       try {
         const res = await fetch(
@@ -97,13 +111,12 @@ export function AppSidebar() {
     checkDeployment()
   }, [])
 
-  const filteredPlatformNav = platformNav.filter(
-    (item) => !("onPremOnly" in item && item.onPremOnly) || isOnPrem,
-  )
+  const visibleMonitoring = filterByRole(monitoringNav, userRole, isOnPrem)
+  const visibleManagement = filterByRole(managementNav, userRole, isOnPrem)
+  const visiblePlatform = filterByRole(platformNav, userRole, isOnPrem)
 
   const userName = session?.user?.name ?? "User"
   const userEmail = session?.user?.email ?? ""
-  const userRole = (session as any)?.role ?? "viewer"
   const userInitials = userName
     .split(" ")
     .map((n: string) => n[0])
@@ -111,19 +124,23 @@ export function AppSidebar() {
     .toUpperCase()
     .slice(0, 2)
 
+  const isProfileActive = pathname.startsWith("/profile")
+
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader className="px-3 py-4">
-        <button className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-sidebar-accent transition-colors group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
-          <div className="flex size-6 shrink-0 items-center justify-center rounded-md bg-primary">
-            <Radio className="size-3.5 text-primary-foreground" />
+        <a
+          href="/dashboard"
+          className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-sidebar-accent transition-colors group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0"
+        >
+          <div className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary">
+            <Radio className="size-4 text-primary-foreground" />
           </div>
           <div className="flex-1 truncate group-data-[collapsible=icon]:hidden">
-            <p className="text-sm font-semibold leading-tight">{userName}</p>
-            <p className="text-xs text-muted-foreground leading-tight capitalize">{userRole}</p>
+            <p className="text-sm font-semibold leading-tight">SMS Platform</p>
+            <p className="text-xs text-muted-foreground leading-tight">Surveillance Management</p>
           </div>
-          <ChevronsUpDown className="size-4 text-muted-foreground group-data-[collapsible=icon]:hidden" />
-        </button>
+        </a>
       </SidebarHeader>
 
       <SidebarContent>
@@ -131,9 +148,9 @@ export function AppSidebar() {
           <SidebarGroupLabel>Monitoring</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {monitoringNav.map((item) => (
+              {visibleMonitoring.map((item) => (
                 <SidebarMenuItem key={item.href}>
-                  <SidebarMenuButton asChild isActive={pathname === item.href}>
+                  <SidebarMenuButton asChild isActive={pathname === item.href} tooltip={item.title}>
                     <a href={item.href}>
                       <item.icon className="size-4" />
                       <span>{item.title}</span>
@@ -145,94 +162,122 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        <SidebarSeparator />
+        {visibleManagement.length > 0 && (
+          <>
+            <SidebarSeparator />
+            <SidebarGroup>
+              <SidebarGroupLabel>Management</SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {visibleManagement.map((item) => (
+                    <SidebarMenuItem key={item.href}>
+                      <SidebarMenuButton asChild isActive={pathname === item.href} tooltip={item.title}>
+                        <a href={item.href}>
+                          <item.icon className="size-4" />
+                          <span>{item.title}</span>
+                        </a>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          </>
+        )}
 
-        <SidebarGroup>
-          <SidebarGroupLabel>Management</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {managementNav.map((item) => (
-                <SidebarMenuItem key={item.href}>
-                  <SidebarMenuButton asChild isActive={pathname === item.href}>
-                    <a href={item.href}>
-                      <item.icon className="size-4" />
-                      <span>{item.title}</span>
-                    </a>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        <SidebarSeparator />
-
-        <SidebarGroup>
-          <SidebarGroupLabel>Platform</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {filteredPlatformNav.map((item) => (
-                <SidebarMenuItem key={item.href}>
-                  <SidebarMenuButton asChild isActive={pathname === item.href}>
-                    <a href={item.href}>
-                      <item.icon className="size-4" />
-                      <span>{item.title}</span>
-                    </a>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {visiblePlatform.length > 0 && (
+          <>
+            <SidebarSeparator />
+            <SidebarGroup>
+              <SidebarGroupLabel>Platform</SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {visiblePlatform.map((item) => (
+                    <SidebarMenuItem key={item.href}>
+                      <SidebarMenuButton asChild isActive={pathname === item.href} tooltip={item.title}>
+                        <a href={item.href}>
+                          <item.icon className="size-4" />
+                          <span>{item.title}</span>
+                        </a>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          </>
+        )}
       </SidebarContent>
 
-      <SidebarFooter className="px-3 py-3 space-y-2">
-        <a
-          href="/docs"
-          className="flex items-center gap-2 px-2 py-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0"
-        >
-          <BookOpen className="size-4 shrink-0" />
-          <span className="group-data-[collapsible=icon]:hidden">Docs</span>
-        </a>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-sidebar-accent transition-colors group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
-              <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium">
-                {userInitials}
-              </div>
-              <div className="flex-1 truncate group-data-[collapsible=icon]:hidden">
-                <p className="text-sm font-medium leading-tight truncate">{userName}</p>
-                <p className="text-xs text-muted-foreground leading-tight truncate">{userEmail}</p>
-              </div>
-              <ChevronsUpDown className="size-4 text-muted-foreground group-data-[collapsible=icon]:hidden" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" side="top" className="w-56">
-            <div className="px-2 py-1.5">
-              <p className="text-sm font-medium">{userName}</p>
-              <p className="text-xs text-muted-foreground">{userEmail}</p>
-            </div>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem asChild>
-              <a href="/profile" className="cursor-pointer">
-                <User className="mr-2 size-4" />
-                Profile
+      <SidebarFooter>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild tooltip="Docs">
+              <a href="/docs">
+                <BookOpen className="size-4" />
+                <span>Docs</span>
               </a>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              className="cursor-pointer text-destructive focus:text-destructive"
-              onClick={() => signOut({ callbackUrl: "/login" })}
-            >
-              <LogOut className="mr-2 size-4" />
-              Logout
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-        <div className="flex items-center gap-2 px-2 text-xs text-muted-foreground group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
-          <div className="size-2 shrink-0 rounded-full bg-emerald-500" />
-          <span className="group-data-[collapsible=icon]:hidden">All systems operational</span>
-        </div>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <SidebarMenuButton
+                  size="lg"
+                  tooltip={userName}
+                  className={isProfileActive ? "bg-sidebar-accent text-sidebar-accent-foreground" : ""}
+                >
+                  <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary text-[10px] font-medium text-primary-foreground">
+                    {userInitials}
+                  </div>
+                  <div className="flex-1 truncate text-left">
+                    <p className="text-sm font-medium leading-tight truncate">{userName}</p>
+                    <p className="text-xs text-muted-foreground leading-tight truncate">{userEmail}</p>
+                  </div>
+                  <ChevronsUpDown className="ml-auto size-4 text-muted-foreground" />
+                </SidebarMenuButton>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                className="w-[--radix-dropdown-menu-trigger-width] min-w-56"
+                align="start"
+                side="top"
+                sideOffset={4}
+              >
+                <div className="px-2 py-1.5">
+                  <p className="text-sm font-medium">{userName}</p>
+                  <p className="text-xs text-muted-foreground">{userEmail}</p>
+                </div>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <a href="/profile?tab=profile" className="cursor-pointer">
+                    <Settings className="mr-2 size-4" />
+                    Settings
+                  </a>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <a href="/profile?tab=billing" className="cursor-pointer">
+                    <CreditCard className="mr-2 size-4" />
+                    Billing
+                  </a>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <a href="/docs" className="cursor-pointer">
+                    <LifeBuoy className="mr-2 size-4" />
+                    Help & Support
+                  </a>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  className="cursor-pointer text-destructive focus:text-destructive"
+                  onClick={() => signOut({ callbackUrl: "/login" })}
+                >
+                  <LogOut className="mr-2 size-4" />
+                  Logout
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </SidebarMenuItem>
+        </SidebarMenu>
       </SidebarFooter>
     </Sidebar>
   )

@@ -1,6 +1,8 @@
 import { Hono } from "hono";
 import crypto from "node:crypto";
 import { eq, and, gt } from "drizzle-orm";
+import bcrypt from "bcryptjs";
+import { SignJWT } from "jose";
 import { db } from "../db/client";
 import { tenants } from "../db/schema/tenants";
 import { users } from "../db/schema/users";
@@ -9,7 +11,91 @@ import { AppError } from "../middleware/error-handler";
 import { sendVerificationEmail } from "../services/email";
 import type { AppEnv } from "../types";
 
+if (!process.env["AUTH_SECRET"]) {
+  throw new Error("AUTH_SECRET environment variable is required");
+}
+const JWT_SECRET = new TextEncoder().encode(process.env["AUTH_SECRET"]);
+const JWT_ISSUER = "sms-platform";
+const JWT_EXPIRY = "7d";
+
+async function issueToken(user: {
+  id: string;
+  tenantId: string;
+  email: string;
+  name: string;
+  role: string;
+}) {
+  return new SignJWT({
+    sub: user.id,
+    tenant_id: user.tenantId,
+    email: user.email,
+    name: user.name,
+    role: user.role,
+  })
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuer(JWT_ISSUER)
+    .setIssuedAt()
+    .setExpirationTime(JWT_EXPIRY)
+    .sign(JWT_SECRET);
+}
+
 export const authRouter = new Hono<AppEnv>();
+
+// POST /auth/login
+authRouter.post("/auth/login", async (c) => {
+  const body = await c.req.json();
+  const { email, password } = body as { email?: string; password?: string };
+
+  if (!email || !password) {
+    throw new AppError("VALIDATION_ERROR", "email and password are required", 422);
+  }
+
+  const user = await db.query.users.findFirst({
+    where: eq(users.email, email.toLowerCase()),
+  });
+
+  if (!user || !user.passwordHash) {
+    throw new AppError("UNAUTHORIZED", "Invalid email or password", 401);
+  }
+
+  const valid = await bcrypt.compare(password, user.passwordHash);
+  if (!valid) {
+    throw new AppError("UNAUTHORIZED", "Invalid email or password", 401);
+  }
+
+  // Update last login
+  db.update(users)
+    .set({ lastLogin: new Date() })
+    .where(eq(users.id, user.id))
+    .catch(() => {});
+
+  const token = await issueToken(user);
+
+  // Check if MFA is enabled — if so, return partial token that requires TOTP verification
+  if (user.mfaEnabled && user.totpSecret) {
+    return c.json({
+      data: {
+        mfa_required: true,
+        mfa_token: token, // short-lived token to pass to /auth/mfa/verify
+        user_id: user.id,
+      },
+    });
+  }
+
+  return c.json({
+    data: {
+      access_token: token,
+      token_type: "Bearer",
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        tenant_id: user.tenantId,
+      },
+    },
+  });
+});
 
 // POST /auth/register
 authRouter.post("/auth/register", async (c) => {
@@ -20,7 +106,6 @@ authRouter.post("/auth/register", async (c) => {
     tenant_name: string;
   };
 
-  // Validation
   if (!email || !password || !tenant_name) {
     throw new AppError(
       "VALIDATION_ERROR",
@@ -52,6 +137,9 @@ authRouter.post("/auth/register", async (c) => {
     throw new AppError("CONFLICT", "An account with this email already exists", 409);
   }
 
+  // Hash password
+  const passwordHash = await bcrypt.hash(password, 12);
+
   // Create tenant
   const slug = tenant_name
     .toLowerCase()
@@ -70,13 +158,14 @@ authRouter.post("/auth/register", async (c) => {
     })
     .returning();
 
-  // Create user (admin role, not yet verified)
+  // Create user with password hash
   const [user] = await db
     .insert(users)
     .values({
       tenantId: tenant!.id,
       email: email.toLowerCase(),
       name: email.split("@")[0]!,
+      passwordHash,
       role: "admin",
       mfaEnabled: false,
     })
@@ -84,7 +173,7 @@ authRouter.post("/auth/register", async (c) => {
 
   // Generate verification token
   const token = crypto.randomBytes(32).toString("hex");
-  const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h
+  const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
   await db.insert(verificationTokens).values({
     email: email.toLowerCase(),
@@ -93,24 +182,28 @@ authRouter.post("/auth/register", async (c) => {
     expiresAt,
   });
 
-  // Send verification email
   const baseUrl = process.env["CONSOLE_WEB_URL"] ?? "http://localhost:3000";
   const verifyUrl = `${baseUrl}/verify/${token}`;
 
   await sendVerificationEmail(email.toLowerCase(), verifyUrl);
-
   console.log(`[AUTH] Verification URL for ${email}: ${verifyUrl}`);
+
+  // Auto-issue token so user is logged in immediately
+  const accessToken = await issueToken(user!);
 
   return c.json(
     {
       data: {
         message: "Registration successful. Please check your email to verify your account.",
-        user_id: user!.id,
-        tenant_id: tenant!.id,
-      },
-      meta: {
-        request_id: crypto.randomUUID(),
-        timestamp: new Date().toISOString(),
+        access_token: accessToken,
+        token_type: "Bearer",
+        user: {
+          id: user!.id,
+          email: user!.email,
+          name: user!.name,
+          role: user!.role,
+          tenant_id: user!.tenantId,
+        },
       },
     },
     201,
@@ -126,7 +219,6 @@ authRouter.post("/auth/verify", async (c) => {
     throw new AppError("VALIDATION_ERROR", "Token is required", 422);
   }
 
-  // Find valid token
   const [record] = await db
     .select()
     .from(verificationTokens)
@@ -147,24 +239,76 @@ authRouter.post("/auth/verify", async (c) => {
     throw new AppError("CONFLICT", "This verification link has already been used", 409);
   }
 
-  // Mark token as used
   await db
     .update(verificationTokens)
     .set({ usedAt: new Date() })
     .where(eq(verificationTokens.id, record.id));
-
-  // Note: email_verified flag would be on a separate column if needed.
-  // For now, the token being used is the verification.
-  // The user can now log in via Keycloak (which is the IdP).
 
   return c.json({
     data: {
       message: "Email verified successfully. You can now sign in.",
       email: record.email,
     },
-    meta: {
-      request_id: crypto.randomUUID(),
-      timestamp: new Date().toISOString(),
+  });
+});
+
+// POST /auth/mfa/verify — verify TOTP code during login
+authRouter.post("/auth/mfa/verify", async (c) => {
+  const body = await c.req.json();
+  const { mfa_token, code } = body as { mfa_token?: string; code?: string };
+
+  if (!mfa_token || !code) {
+    throw new AppError("VALIDATION_ERROR", "mfa_token and code are required", 422);
+  }
+
+  // Verify the mfa_token to get the user
+  const { jwtVerify } = await import("jose");
+  let userId: string;
+  try {
+    const { payload } = await jwtVerify(mfa_token, JWT_SECRET, { issuer: JWT_ISSUER });
+    userId = payload.sub as string;
+  } catch {
+    throw new AppError("UNAUTHORIZED", "Invalid or expired MFA token", 401);
+  }
+
+  const user = await db.query.users.findFirst({
+    where: eq(users.id, userId),
+  });
+
+  if (!user?.totpSecret || !user.mfaEnabled) {
+    throw new AppError("NOT_FOUND", "MFA not configured for this user", 404);
+  }
+
+  const { TOTP, Secret } = await import("otpauth");
+  const totp = new TOTP({
+    algorithm: "SHA1",
+    digits: 6,
+    period: 30,
+    secret: Secret.fromBase32(user.totpSecret),
+  });
+
+  const delta = totp.validate({ token: code, window: 1 });
+  if (delta === null) {
+    throw new AppError("UNAUTHORIZED", "Invalid verification code", 401);
+  }
+
+  // Issue full access token
+  const token = await issueToken(user);
+
+  return c.json({
+    data: {
+      access_token: token,
+      token_type: "Bearer",
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        tenant_id: user.tenantId,
+      },
     },
   });
 });
+
+// Export JWT helpers for use in other routes
+export { JWT_SECRET, JWT_ISSUER, issueToken };

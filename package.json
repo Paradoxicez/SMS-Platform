@@ -11,6 +11,7 @@
     "license:keygen": "tsx scripts/generate-keypair.ts"
   },
   "devDependencies": {
+    "@playwright/test": "^1.58.2",
     "playwright": "^1.58.2",
     "prettier": "^3.0.0",
     "tsx": "^4.0.0",

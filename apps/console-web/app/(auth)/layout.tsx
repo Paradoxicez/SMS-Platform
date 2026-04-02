@@ -5,6 +5,7 @@ import { Separator } from "@/components/ui/separator";
 import { AppSidebar } from "@/components/app-sidebar";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import { LicenseBanner } from "@/components/license-banner";
+import { DatePrefsProvider } from "@/components/date-prefs-provider";
 
 export default function AuthLayout({
   children,
@@ -12,6 +13,7 @@ export default function AuthLayout({
   children: React.ReactNode;
 }) {
   return (
+    <DatePrefsProvider>
     <SidebarProvider>
       <AppSidebar />
       <SidebarInset>
@@ -25,5 +27,6 @@ export default function AuthLayout({
         <main className="p-6">{children}</main>
       </SidebarInset>
     </SidebarProvider>
+    </DatePrefsProvider>
   );
 }

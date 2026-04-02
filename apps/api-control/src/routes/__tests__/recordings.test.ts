@@ -280,14 +280,14 @@ describe("recording routes", () => {
       const res = await app.request("/recording-config/camera/cam-1", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: "event_based", retentionDays: 7 }),
+        body: JSON.stringify({ mode: "scheduled", retentionDays: 7 }),
       });
       expect(res.status).toBe(200);
       expect(mockUpsertConfig).toHaveBeenCalledWith(
         "tenant-123",
         "camera",
         "cam-1",
-        expect.objectContaining({ mode: "event_based", retentionDays: 7 }),
+        expect.objectContaining({ mode: "scheduled", retentionDays: 7 }),
       );
     });
 

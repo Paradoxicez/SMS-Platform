@@ -116,6 +116,7 @@ export default function StreamEngineSettingsPage() {
   const [autoPurge, setAutoPurge] = useState(true);
   const [storagePath, setStoragePath] = useState("/recordings");
   const [segmentDuration, setSegmentDuration] = useState("60");
+  const [scheduleWindows, setScheduleWindows] = useState<{ days: string[]; from: string; to: string }[]>([]);
 
   // Stream Log state
   const [logLevel, setLogLevel] = useState("info");
@@ -175,12 +176,13 @@ export default function StreamEngineSettingsPage() {
           segment_duration_minutes?: number;
         };
       }>("/recording-config/global");
-      const rc = recRes.data;
+      const rc = recRes.data as any;
       if (rc.recording_mode) setRecordingMode(rc.recording_mode);
       if (rc.retention_days !== undefined) setRetentionDays(String(rc.retention_days));
       if (rc.auto_purge !== undefined) setAutoPurge(rc.auto_purge);
       if (rc.storage_path) setStoragePath(rc.storage_path);
       if (rc.segment_duration_minutes !== undefined) setSegmentDuration(String(rc.segment_duration_minutes));
+      if (rc.schedule && Array.isArray(rc.schedule)) setScheduleWindows(rc.schedule);
     } catch {
       // Use defaults on error
     }
@@ -350,6 +352,7 @@ export default function StreamEngineSettingsPage() {
         storage_type: "local",
         format: "fmp4",
         resolution: "original",
+        ...(recordingMode === "scheduled" ? { schedule: scheduleWindows } : {}),
       });
 
       setConfigVersion(res.data.version);
@@ -905,20 +908,108 @@ export default function StreamEngineSettingsPage() {
                         <span className="text-muted-foreground ml-2">— Time windows only</span>
                       </div>
                     </SelectItem>
-                    <SelectItem value="event_based">
-                      <div>
-                        <span className="font-medium">Event Based</span>
-                        <span className="text-muted-foreground ml-2">— On motion/trigger</span>
-                      </div>
-                    </SelectItem>
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
                   {recordingMode === "continuous" && "Cameras will record continuously around the clock. Best for high-security areas."}
                   {recordingMode === "scheduled" && "Cameras will only record during configured time windows. Saves storage."}
-                  {recordingMode === "event_based" && "Cameras will start recording when triggered by events like motion detection."}
                 </p>
               </div>
+
+              {recordingMode === "scheduled" && (
+                <div className="space-y-3 rounded-lg border p-4">
+                  <div className="flex items-center justify-between">
+                    <Label>Schedule Windows</Label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        setScheduleWindows((prev) => [
+                          ...prev,
+                          { days: ["mon", "tue", "wed", "thu", "fri"], from: "08:00", to: "18:00" },
+                        ])
+                      }
+                    >
+                      Add Window
+                    </Button>
+                  </div>
+                  {scheduleWindows.length === 0 && (
+                    <p className="text-xs text-muted-foreground py-2 text-center">
+                      No schedule windows configured. Add one to define when recording is active.
+                    </p>
+                  )}
+                  {scheduleWindows.map((win, idx) => (
+                    <div key={idx} className="flex items-start gap-3 rounded border p-3">
+                      <div className="flex-1 space-y-2">
+                        <div className="flex flex-wrap gap-1">
+                          {(["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const).map((day) => (
+                            <button
+                              key={day}
+                              type="button"
+                              className={`rounded px-2 py-1 text-xs font-medium transition-colors ${
+                                win.days.includes(day)
+                                  ? "bg-primary text-primary-foreground"
+                                  : "bg-muted text-muted-foreground hover:bg-muted/80"
+                              }`}
+                              onClick={() =>
+                                setScheduleWindows((prev) =>
+                                  prev.map((w, i) =>
+                                    i === idx
+                                      ? {
+                                          ...w,
+                                          days: w.days.includes(day)
+                                            ? w.days.filter((d) => d !== day)
+                                            : [...w.days, day],
+                                        }
+                                      : w,
+                                  ),
+                                )
+                              }
+                            >
+                              {day.charAt(0).toUpperCase() + day.slice(1)}
+                            </button>
+                          ))}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Input
+                            type="time"
+                            value={win.from}
+                            onChange={(e) =>
+                              setScheduleWindows((prev) =>
+                                prev.map((w, i) => (i === idx ? { ...w, from: e.target.value } : w)),
+                              )
+                            }
+                            className="h-8 w-[120px] text-sm"
+                          />
+                          <span className="text-sm text-muted-foreground">to</span>
+                          <Input
+                            type="time"
+                            value={win.to}
+                            onChange={(e) =>
+                              setScheduleWindows((prev) =>
+                                prev.map((w, i) => (i === idx ? { ...w, to: e.target.value } : w)),
+                              )
+                            }
+                            className="h-8 w-[120px] text-sm"
+                          />
+                        </div>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="size-8 text-destructive shrink-0"
+                        onClick={() =>
+                          setScheduleWindows((prev) => prev.filter((_, i) => i !== idx))
+                        }
+                      >
+                        <span className="text-lg leading-none">&times;</span>
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               <Separator />
 

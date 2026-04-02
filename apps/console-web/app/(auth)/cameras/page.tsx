@@ -46,6 +46,9 @@ import { EditCameraDialog } from "../../../components/cameras/edit-camera-dialog
 import { RecordingSettingsDialog } from "@/components/recordings/recording-settings-dialog";
 import { SortableTableHead, useTableSort } from "@/components/ui/sortable-table-head";
 import { useCameraStatusStream } from "../../../hooks/use-camera-status-stream";
+import { ViewToggle } from "@/components/recordings/view-toggle";
+import { CameraCard } from "@/components/cameras/camera-card";
+import { useUserRole } from "@/lib/use-user-role";
 
 type HealthStatus = Camera["health_status"];
 
@@ -58,15 +61,17 @@ export default function CamerasPageWrapper() {
 }
 
 function CamerasPage() {
+  const { canEdit } = useUserRole();
   const searchParams = useSearchParams();
   const importParam = searchParams.get("import");
   const preselectedProfileParam = searchParams.get("profile");
   const tagParam = searchParams.get("tag");
+  const statusParam = searchParams.get("status");
 
   const [cameras, setCameras] = useState<Camera[]>([]);
   const [loading, setLoading] = useState(true);
   const { sortKey, sortDirection, handleSort, sortData } = useTableSort();
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>(statusParam ?? "all");
   const [recordingFilter, setRecordingFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [siteFilter, setSiteFilter] = useState<string>("all");
@@ -85,6 +90,8 @@ function CamerasPage() {
   const [projectFilter, setProjectFilter] = useState<string>("all");
   const [projectsList, setProjectsList] = useState<{ id: string; name: string }[]>([]);
   const [sitesList, setSitesList] = useState<{ id: string; name: string; project_id: string }[]>([]);
+  const [viewerCounts, setViewerCounts] = useState<Record<string, number>>({});
+  const [viewMode, setViewMode] = useState<"grid" | "table">("table");
 
   // T214: Bulk selection state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -212,6 +219,19 @@ function CamerasPage() {
   useEffect(() => {
     fetchCameras();
   }, [fetchCameras]);
+
+  // Poll viewer counts every 5 seconds
+  useEffect(() => {
+    function fetchViewers() {
+      apiClient
+        .get<{ data: { per_camera: Record<string, number> } }>("/cameras/status/viewers")
+        .then((res) => setViewerCounts(res.data.per_camera ?? {}))
+        .catch(() => {});
+    }
+    fetchViewers();
+    const interval = setInterval(fetchViewers, 5000);
+    return () => clearInterval(interval);
+  }, []);
 
   const handleAssignProfile = async (cameraId: string, profileId: string) => {
     try {
@@ -430,16 +450,18 @@ function CamerasPage() {
             Manage and monitor your CCTV cameras. {total} camera(s) total.
           </p>
         </div>
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            onClick={() => setCsvDropZoneOpen(!csvDropZoneOpen)}
-          >
-            <Upload className="mr-2 size-4" />
-            Import
-          </Button>
-          <Button onClick={() => setDialogOpen(true)}>Add Camera</Button>
-        </div>
+        {canEdit && (
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setCsvDropZoneOpen(!csvDropZoneOpen)}
+            >
+              <Upload className="mr-2 size-4" />
+              Import
+            </Button>
+            <Button onClick={() => setDialogOpen(true)}>Add Camera</Button>
+          </div>
+        )}
       </div>
 
       {/* CSV Drop Zone */}
@@ -530,10 +552,11 @@ function CamerasPage() {
           onChange={(e) => setSearchQuery(e.target.value)}
           className="w-[250px]"
         />
+        <ViewToggle view={viewMode} onViewChange={setViewMode} />
       </div>
 
       {/* T215: Bulk Action Toolbar */}
-      {selectedIds.size > 0 && (
+      {canEdit && selectedIds.size > 0 && (
         <div className="flex items-center gap-3 rounded-lg border bg-muted/50 px-4 py-2">
           <span className="text-sm font-medium">
             {selectedIds.size} selected
@@ -603,6 +626,27 @@ function CamerasPage() {
             </>
           )}
         </div>
+      ) : viewMode === "grid" ? (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {sortData(cameras, (c: Camera, key: string) => {
+            if (key === "name") return c.name
+            if (key === "site") return siteNames[(c as any).site_id ?? (c as any).siteId] ?? ""
+            if (key === "status") return c.health_status
+            return null
+          }).map((camera) => (
+            <CameraCard
+              key={camera.id}
+              camera={camera}
+              siteName={siteNames[(camera as any).site_id ?? (camera as any).siteId] ?? undefined}
+              viewerCount={viewerCounts[camera.id]}
+              onClick={() => {
+                setSelectedCamera(camera);
+                setSheetOpen(true);
+              }}
+              onRefresh={fetchCameras}
+            />
+          ))}
+        </div>
       ) : (
         <div className="rounded-md border">
           <Table>
@@ -620,6 +664,7 @@ function CamerasPage() {
                 <TableHead>RTSP URL</TableHead>
                 <TableHead>Profile</TableHead>
                 <TableHead>Tags</TableHead>
+                <TableHead>Viewers</TableHead>
                 <TableHead>Uptime</TableHead>
                 <TableHead>Last Seen</TableHead>
                 <TableHead className="w-[50px]" />
@@ -686,6 +731,11 @@ function CamerasPage() {
                     </div>
                   </TableCell>
                   <TableCell>
+                    <span className="text-sm tabular-nums text-muted-foreground">
+                      {viewerCounts[camera.id] ?? 0}
+                    </span>
+                  </TableCell>
+                  <TableCell>
                     <span className="text-sm text-muted-foreground">
                       {formatUptime(camera.created_at instanceof Date ? camera.created_at.toISOString() : camera.created_at)}
                     </span>
@@ -706,92 +756,96 @@ function CamerasPage() {
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem
                           onClick={() => {
-                            setEditCamera(camera);
-                            setEditDialogOpen(true);
-                          }}
-                        >
-                          Edit
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => {
                             setSelectedCamera(camera);
                             setSheetOpen(true);
                           }}
                         >
                           View Details
                         </DropdownMenuItem>
-                        {camera.health_status === "stopped" ||
-                        camera.health_status === "offline" ? (
-                          <DropdownMenuItem
-                            onClick={() => handleStartCamera(camera.id)}
-                          >
-                            Start Stream
-                          </DropdownMenuItem>
-                        ) : camera.health_status === "stopping" ? (
-                          <DropdownMenuItem disabled>
-                            Stopping...
-                          </DropdownMenuItem>
-                        ) : (
-                          <DropdownMenuItem
-                            onClick={() => handleStopCamera(camera.id)}
-                          >
-                            Stop Stream
-                          </DropdownMenuItem>
-                        )}
-                        <DropdownMenuSub>
-                          <DropdownMenuSubTrigger>
-                            Assign Profile
-                          </DropdownMenuSubTrigger>
-                          <DropdownMenuSubContent>
-                            {profiles.map((profile) => {
-                              const isActive = (camera as any).profile_id === profile.id;
-                              return (
-                                <DropdownMenuItem
-                                  key={profile.id}
-                                  className={isActive ? "bg-accent font-medium" : ""}
-                                  onClick={() =>
-                                    handleAssignProfile(camera.id, profile.id)
-                                  }
-                                >
-                                  {isActive && <span className="mr-1.5">✓</span>}
-                                  {profile.name}
-                                  {profile.is_default && " (Default)"}
-                                </DropdownMenuItem>
-                              );
-                            })}
-                            {profiles.length === 0 && (
+                        {canEdit && (
+                          <>
+                            <DropdownMenuItem
+                              onClick={() => {
+                                setEditCamera(camera);
+                                setEditDialogOpen(true);
+                              }}
+                            >
+                              Edit
+                            </DropdownMenuItem>
+                            {camera.health_status === "stopped" ||
+                            camera.health_status === "offline" ? (
+                              <DropdownMenuItem
+                                onClick={() => handleStartCamera(camera.id)}
+                              >
+                                Start Stream
+                              </DropdownMenuItem>
+                            ) : camera.health_status === "stopping" ? (
                               <DropdownMenuItem disabled>
-                                No profiles available
+                                Stopping...
+                              </DropdownMenuItem>
+                            ) : (
+                              <DropdownMenuItem
+                                onClick={() => handleStopCamera(camera.id)}
+                              >
+                                Stop Stream
                               </DropdownMenuItem>
                             )}
-                          </DropdownMenuSubContent>
-                        </DropdownMenuSub>
-                        <DropdownMenuSub>
-                          <DropdownMenuSubTrigger className="whitespace-nowrap">
-                            Recording
-                          </DropdownMenuSubTrigger>
-                          <DropdownMenuSubContent>
+                            <DropdownMenuSub>
+                              <DropdownMenuSubTrigger>
+                                Assign Profile
+                              </DropdownMenuSubTrigger>
+                              <DropdownMenuSubContent>
+                                {profiles.map((profile) => {
+                                  const isActive = (camera as any).profile_id === profile.id;
+                                  return (
+                                    <DropdownMenuItem
+                                      key={profile.id}
+                                      className={isActive ? "bg-accent font-medium" : ""}
+                                      onClick={() =>
+                                        handleAssignProfile(camera.id, profile.id)
+                                      }
+                                    >
+                                      {isActive && <span className="mr-1.5">✓</span>}
+                                      {profile.name}
+                                      {profile.is_default && " (Default)"}
+                                    </DropdownMenuItem>
+                                  );
+                                })}
+                                {profiles.length === 0 && (
+                                  <DropdownMenuItem disabled>
+                                    No profiles available
+                                  </DropdownMenuItem>
+                                )}
+                              </DropdownMenuSubContent>
+                            </DropdownMenuSub>
+                            <DropdownMenuSub>
+                              <DropdownMenuSubTrigger className="whitespace-nowrap">
+                                Recording
+                              </DropdownMenuSubTrigger>
+                              <DropdownMenuSubContent>
+                                <DropdownMenuItem
+                                  className="whitespace-nowrap"
+                                  onClick={() => handleToggleRecording(camera)}
+                                >
+                                  {(camera as any).recording_enabled === true ? "Stop Recording" : "Start Recording"}
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  className="whitespace-nowrap"
+                                  onClick={() => setRecordingSettingsCamera({ id: camera.id, name: camera.name })}
+                                >
+                                  Settings
+                                </DropdownMenuItem>
+                              </DropdownMenuSubContent>
+                            </DropdownMenuSub>
+                            <DropdownMenuSeparator />
                             <DropdownMenuItem
-                              className="whitespace-nowrap"
-                              onClick={() => handleToggleRecording(camera)}
+                              className="text-red-600"
+                              onClick={() => handleDeleteCamera(camera.id)}
                             >
-                              {(camera as any).recording_enabled === true ? "Stop Recording" : "Start Recording"}
+                              Delete
                             </DropdownMenuItem>
-                            <DropdownMenuItem
-                              className="whitespace-nowrap"
-                              onClick={() => setRecordingSettingsCamera({ id: camera.id, name: camera.name })}
-                            >
-                              Settings
-                            </DropdownMenuItem>
-                          </DropdownMenuSubContent>
-                        </DropdownMenuSub>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          className="text-red-600"
-                          onClick={() => handleDeleteCamera(camera.id)}
-                        >
-                          Delete
-                        </DropdownMenuItem>
+                          </>
+                        )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                     </div>

@@ -24,6 +24,7 @@ billingRouter.get("/billing/usage", async (c) => {
       projects: usage.projects,
       users: usage.users,
       viewer_hours_quota: usage.viewerHoursQuota,
+      features: usage.features,
     },
     meta: {
       request_id: crypto.randomUUID(),

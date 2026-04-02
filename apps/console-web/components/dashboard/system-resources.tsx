@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Cpu, MemoryStick, HardDrive, Activity, Database } from "lucide-react";
+import { Cpu, MemoryStick, HardDrive, Database } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -129,55 +129,6 @@ function MetricCard({
   );
 }
 
-// ─── Bandwidth Card (special: shows in + out) ──────────────────────────────────
-
-function BandwidthCard({
-  data: _data,
-  currentIn,
-  currentOut,
-}: {
-  data: MetricPoint[];
-  currentIn: number;
-  currentOut: number;
-}) {
-  const color = "#22c55e";
-
-  return (
-    <Card
-      className="relative overflow-hidden transition-all duration-500"
-      style={{ borderColor: `${color}22` }}
-    >
-      <CardContent className="px-4 py-3">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-1">
-          <div className="flex items-center gap-2">
-            <Activity className="size-4 text-muted-foreground" />
-            <span className="text-sm font-medium">Streaming</span>
-          </div>
-          <span className="text-xs text-muted-foreground">kbps</span>
-        </div>
-
-        {/* In/Out numbers */}
-        <div className="flex items-center gap-3">
-          <div className="flex items-baseline gap-1">
-            <span className="text-xl font-bold tabular-nums text-blue-500">
-              <AnimatedNumber value={currentIn} suffix="" color="#3b82f6" />
-            </span>
-            <span className="text-xs text-muted-foreground">in</span>
-          </div>
-          <span className="text-muted-foreground">/</span>
-          <div className="flex items-baseline gap-1">
-            <span className="text-xl font-bold tabular-nums text-emerald-500">
-              <AnimatedNumber value={currentOut} suffix="" color="#22c55e" />
-            </span>
-            <span className="text-xs text-muted-foreground">out</span>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
 // ─── Recording Storage Card ─────────────────────────────────────────────────────
 
 interface StorageUsage {
@@ -284,12 +235,10 @@ function RecordingStorageCard() {
 
 // ─── Main Component with SSE ───────────────────────────────────────────────────
 
-const MAX_POINTS = 60;
 // Strip /api/v1 suffix if present — SSE URL is built with full path
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001/api/v1").replace(/\/api\/v1$/, "");
 
 export function SystemResources() {
-  const [data, setData] = useState<MetricPoint[]>([]);
   const [current, setCurrent] = useState<MetricPoint | null>(null);
   const [connected, setConnected] = useState(false);
   const eventSourceRef = useRef<EventSource | null>(null);
@@ -303,7 +252,6 @@ export function SystemResources() {
     es.addEventListener("history", (e) => {
       try {
         const history = JSON.parse(e.data) as MetricPoint[];
-        setData(history);
         if (history.length > 0) setCurrent(history[history.length - 1]!);
         setConnected(true);
       } catch { /* ignore */ }
@@ -313,11 +261,6 @@ export function SystemResources() {
       try {
         const point = JSON.parse(e.data) as MetricPoint;
         setCurrent(point);
-        setData((prev) => {
-          const next = [...prev, point];
-          if (next.length > MAX_POINTS) next.shift();
-          return next;
-        });
         setConnected(true);
       } catch { /* ignore */ }
     });
@@ -344,7 +287,6 @@ export function SystemResources() {
         if (!res.ok) return;
         const json = await res.json();
         const d = json.data;
-        if (d?.history) setData(d.history);
         if (d?.current) {
           setCurrent({
             t: d.current.timestamp,
@@ -377,17 +319,8 @@ export function SystemResources() {
   }
 
   return (
-    <div className="space-y-2 shrink-0">
-      <div className="flex items-center gap-2">
-        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-          System Resources
-        </span>
-        <span
-          className={`size-1.5 rounded-full ${connected ? "bg-emerald-500 animate-pulse" : "bg-red-500"}`}
-          title={connected ? "Live" : "Reconnecting..."}
-        />
-      </div>
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+    <div className="shrink-0">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <MetricCard
           icon={Cpu}
           label="CPU"
@@ -405,11 +338,6 @@ export function SystemResources() {
           label="Storage"
           percent={current.disk}
           subtitle={current.diskTotal ? `${formatBytes(current.diskUsed ?? 0)} / ${formatBytes(current.diskTotal)}` : ""}
-        />
-        <BandwidthCard
-          data={data}
-          currentIn={current.bwIn}
-          currentOut={current.bwOut}
         />
         <RecordingStorageCard />
       </div>

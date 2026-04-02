@@ -1,6 +1,6 @@
 import { eq, and, sql } from "drizzle-orm";
 import { withTenantContext } from "../db/client";
-import { streamProfiles, cameras } from "../db/schema";
+import { streamProfiles, cameras, sites } from "../db/schema";
 import { logAuditEvent } from "./audit";
 import { AppError } from "../middleware/error-handler";
 import type { CreateStreamProfileInput, UpdateStreamProfileInput } from "@repo/types";
@@ -171,6 +171,14 @@ export async function deleteProfile(
         .where(and(eq(cameras.profileId, id), eq(cameras.tenantId, tenantId)));
     });
   }
+
+  // Clear sites referencing this profile as default
+  await withTenantContext(tenantId, async (tx) => {
+    await tx
+      .update(sites)
+      .set({ defaultProfileId: null })
+      .where(and(eq(sites.defaultProfileId, id), eq(sites.tenantId, tenantId)));
+  });
 
   const [deleted] = await withTenantContext(tenantId, async (tx) => {
     return tx

@@ -17,7 +17,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Sliders, MoreHorizontal, Pencil, Copy, Trash2 } from "lucide-react";
+import { Sliders, MoreHorizontal } from "lucide-react";
 import { SortableTableHead, useTableSort } from "@/components/ui/sortable-table-head";
 import { TablePagination, useClientPagination } from "@/components/ui/table-pagination";
 import {
@@ -26,6 +26,7 @@ import {
   type CreateStreamProfileInput,
 } from "../../../lib/api-client";
 import { ProfileFormDialog } from "../../../components/profiles/profile-form-dialog";
+import { FeatureGate } from "@/components/feature-gate";
 
 function ProtocolBadge({ protocol }: { protocol: StreamProfile["protocol"] }) {
   switch (protocol) {
@@ -66,6 +67,14 @@ function AudioBadge({ mode }: { mode: StreamProfile["audio_mode"] }) {
 }
 
 export default function ProfilesPage() {
+  return (
+    <FeatureGate feature="stream_profiles">
+      <ProfilesPageContent />
+    </FeatureGate>
+  );
+}
+
+function ProfilesPageContent() {
   const [profiles, setProfiles] = useState<StreamProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const { sortKey, sortDirection, handleSort, sortData } = useTableSort();
@@ -116,7 +125,8 @@ export default function ProfilesPage() {
       if (dialogMode === "edit" && editingProfile) {
         await apiClient.updateStreamProfile(editingProfile.id, {
           ...data,
-        } as Partial<CreateStreamProfileInput>);
+          version: editingProfile.version,
+        } as any);
       } else {
         await apiClient.createStreamProfile(data);
       }
@@ -230,11 +240,9 @@ export default function ProfilesPage() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onClick={() => openEdit(profile)}>
-                          <Pencil className="mr-2 size-4" />
                           Edit
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => handleClone(profile.id)}>
-                          <Copy className="mr-2 size-4" />
                           Clone
                         </DropdownMenuItem>
                         {!profile.is_default && (
@@ -242,7 +250,6 @@ export default function ProfilesPage() {
                             className="text-red-600"
                             onClick={() => handleDelete(profile.id)}
                           >
-                            <Trash2 className="mr-2 size-4" />
                             Delete
                           </DropdownMenuItem>
                         )}

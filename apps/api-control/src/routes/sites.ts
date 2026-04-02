@@ -44,6 +44,7 @@ sitesRouter.post(
           lng: data.lng ?? null,
           timezone: data.timezone ?? "UTC",
           defaultProfileId: data.default_profile_id ?? null,
+          defaultPolicyId: data.default_policy_id ?? null,
         })
         .returning();
     });
@@ -162,6 +163,8 @@ sitesRouter.patch(
     if (data.timezone !== undefined) updateData.timezone = data.timezone;
     if (data.default_profile_id !== undefined)
       updateData.defaultProfileId = data.default_profile_id;
+    if (data.default_policy_id !== undefined)
+      updateData.defaultPolicyId = data.default_policy_id;
 
     const [site] = await withTenantContext(tenantId, async (tx) => {
       return tx

@@ -178,7 +178,36 @@ async function handleStateChange(data: StateChangeEvent): Promise<void> {
     );
   });
 
-  // Send notifications for offline/degraded state changes
+  // Send notifications for state changes
+  if (data.new_state === "online" && (data.previous_state === "offline" || data.previous_state === "degraded")) {
+    try {
+      const camera = await db.query.cameras.findFirst({
+        where: eq(cameras.id, data.camera_id),
+        columns: { name: true },
+      });
+      const cameraName = camera?.name ?? data.camera_id;
+      const tenantUsers = await db
+        .select({ id: users.id, role: users.role })
+        .from(users)
+        .where(eq(users.tenantId, data.tenant_id));
+      const relevantUsers = tenantUsers.filter(
+        (u) => u.role === "admin" || u.role === "operator",
+      );
+      for (const user of relevantUsers) {
+        createNotification({
+          userId: user.id,
+          tenantId: data.tenant_id,
+          type: "camera.online",
+          title: `Camera '${cameraName}' is back online`,
+          message: `Camera '${cameraName}' recovered from ${data.previous_state} state.`,
+          link: `/cameras`,
+        }).catch(() => {});
+      }
+    } catch {
+      // notification delivery is best-effort
+    }
+  }
+
   if (data.new_state === "offline" || data.new_state === "degraded") {
     try {
       // Look up camera name

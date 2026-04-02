@@ -7,6 +7,7 @@ import { requireRole } from "../middleware/rbac";
 import { rateLimitMiddleware } from "../middleware/rate-limit";
 import {
   issueSession,
+  issueInternalSession,
   refreshSession,
   revokeSession,
   batchCreateSessions,
@@ -36,6 +37,60 @@ playbackRouter.post(
       embedOrigin: parsed.embed_origin,
       tenantId,
       apiClientId,
+      viewerIp,
+    });
+
+    return c.json(
+      {
+        data: result,
+        meta: {
+          request_id: crypto.randomUUID(),
+          timestamp: new Date().toISOString(),
+        },
+      },
+      201,
+    );
+  },
+);
+
+// ─── POST /playback/internal/sessions ─────────────────────────────────────────
+// Internal session for console-web live view — skips policy enforcement
+playbackRouter.post(
+  "/internal/sessions",
+  requireRole("admin", "operator", "developer"),
+  async (c) => {
+    // Reject API key auth — internal sessions are for console-web users only
+    const apiClientId = c.get("apiClientId") as string | undefined;
+    if (apiClientId) {
+      return c.json(
+        {
+          error: {
+            code: "FORBIDDEN",
+            message: "Internal sessions require user authentication, not API key",
+          },
+        },
+        403,
+      );
+    }
+
+    const body = await c.req.json();
+    const cameraId = body.camera_id;
+    if (!cameraId || typeof cameraId !== "string") {
+      return c.json(
+        { error: { code: "VALIDATION_ERROR", message: "camera_id is required" } },
+        422,
+      );
+    }
+
+    const tenantId = c.get("tenantId") as string;
+    const userId = c.get("userId") as string;
+    const viewerIp =
+      c.req.header("x-forwarded-for") ?? c.req.header("x-real-ip");
+
+    const result = await issueInternalSession({
+      cameraId,
+      tenantId,
+      userId,
       viewerIp,
     });
 

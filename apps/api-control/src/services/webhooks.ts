@@ -37,6 +37,21 @@ export async function unregisterWebhook(id: string, tenantId: string) {
   });
 }
 
+export async function updateWebhook(
+  id: string,
+  tenantId: string,
+  data: { url?: string; events?: string[]; isActive?: boolean },
+) {
+  const [updated] = await withTenantContext(tenantId, async (tx) => {
+    return tx
+      .update(webhooks)
+      .set({ ...data, updatedAt: new Date() })
+      .where(and(eq(webhooks.id, id), eq(webhooks.tenantId, tenantId)))
+      .returning();
+  });
+  return updated;
+}
+
 export async function listWebhooks(tenantId: string) {
   return withTenantContext(tenantId, async (tx) => {
     return tx.query.webhooks.findMany({

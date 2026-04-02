@@ -60,24 +60,26 @@ export function ProfileFormDialog({
 }: ProfileFormDialogProps) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [protocol, setProtocol] = useState<"hls" | "webrtc" | "both">("hls");
   const [audioMode, setAudioMode] = useState<"include" | "strip" | "mute">("include");
   const [framerateOption, setFramerateOption] = useState("original");
   const [customFramerate, setCustomFramerate] = useState(15);
   const [resolution, setResolution] = useState("original");
-  const [codec, setCodec] = useState<"h264" | "passthrough" | "copy">("h264");
+  const [transcodeMode, setTranscodeMode] = useState<"transcode" | "original">("transcode");
   const [keyframeInterval, setKeyframeInterval] = useState(2);
 
   useEffect(() => {
     if (initialData) {
       setName(initialData.name);
       setDescription(initialData.description ?? "");
-      setProtocol((initialData as any).output_protocol ?? (initialData as any).protocol ?? "hls");
       setAudioMode(initialData.audio_mode);
       setResolution((initialData as any).output_resolution ?? "original");
-      setCodec((initialData as any).output_codec ?? "h264");
       setKeyframeInterval((initialData as any).keyframe_interval ?? 2);
-      if (initialData.max_framerate === null) {
+
+      // Map codec to transcode mode
+      const codec = (initialData as any).output_codec ?? "h264";
+      setTranscodeMode(codec === "passthrough" || codec === "copy" ? "original" : "transcode");
+
+      if (initialData.max_framerate === null || initialData.max_framerate === 0) {
         setFramerateOption("original");
       } else {
         const match = FRAMERATE_OPTIONS.find(
@@ -93,15 +95,22 @@ export function ProfileFormDialog({
     } else {
       setName("");
       setDescription("");
-      setProtocol("hls");
       setAudioMode("include");
       setFramerateOption("original");
       setCustomFramerate(15);
       setResolution("original");
-      setCodec("h264");
+      setTranscodeMode("transcode");
       setKeyframeInterval(2);
     }
   }, [initialData, open]);
+
+  // When switching to original, reset resolution/framerate
+  useEffect(() => {
+    if (transcodeMode === "original") {
+      setResolution("original");
+      setFramerateOption("original");
+    }
+  }, [transcodeMode]);
 
   function handleSubmit() {
     let maxFramerate: number | null = null;
@@ -111,20 +120,23 @@ export function ProfileFormDialog({
       maxFramerate = Number(framerateOption);
     }
 
+    const isTranscode = transcodeMode === "transcode";
+
     onSave({
       name: name.trim(),
       description: description.trim() || undefined,
-      output_protocol: protocol,
+      output_protocol: "hls",
       audio_mode: audioMode,
-      max_framerate: maxFramerate,
-      output_resolution: resolution,
-      output_codec: codec,
-      keyframe_interval: keyframeInterval,
+      max_framerate: isTranscode ? (maxFramerate ?? 0) : 0,
+      output_resolution: isTranscode ? resolution : "original",
+      output_codec: isTranscode ? "h264" : "passthrough",
+      keyframe_interval: isTranscode ? keyframeInterval : 2,
     } as any);
   }
 
+  const isTranscode = transcodeMode === "transcode";
   const showTranscodingWarning =
-    framerateOption !== "original" || resolution !== "original";
+    isTranscode && (framerateOption !== "original" || resolution !== "original");
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
@@ -163,43 +175,22 @@ export function ProfileFormDialog({
             />
           </div>
 
-          {/* Output Protocol */}
+          {/* Transcode Mode */}
           <div className="space-y-2">
-            <Label>Output Protocol</Label>
-            <Select value={protocol} onValueChange={(v) => setProtocol(v as typeof protocol)}>
+            <Label>Video Processing</Label>
+            <Select value={transcodeMode} onValueChange={(v) => setTranscodeMode(v as typeof transcodeMode)}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="hls">HLS</SelectItem>
-                <SelectItem value="webrtc">WebRTC</SelectItem>
-                <SelectItem value="both">Both</SelectItem>
+                <SelectItem value="transcode">Transcode (H.264)</SelectItem>
+                <SelectItem value="original">Original (Passthrough)</SelectItem>
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">
-              {protocol === "hls" && "HTTP Live Streaming — widest compatibility, 5-15s latency."}
-              {protocol === "webrtc" && "Ultra-low latency (< 1s), peer-to-peer."}
-              {protocol === "both" && "HLS with optional WebRTC for low latency."}
-            </p>
-          </div>
-
-          {/* Output Codec */}
-          <div className="space-y-2">
-            <Label>Output Codec</Label>
-            <Select value={codec} onValueChange={(v) => setCodec(v as typeof codec)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="h264">H.264</SelectItem>
-                <SelectItem value="passthrough">Passthrough</SelectItem>
-                <SelectItem value="copy">Copy</SelectItem>
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground">
-              {codec === "h264" && "Transcode to H.264 — widest compatibility, works with HLS and all browsers."}
-              {codec === "passthrough" && "No transcoding — send camera's native codec directly. WebRTC only, saves CPU."}
-              {codec === "copy" && "Repackage without transcoding — only works if camera already outputs H.264."}
+              {isTranscode
+                ? "Re-encode to H.264 — allows resolution, framerate, and audio changes. Uses CPU."
+                : "Stream camera output directly — no processing, lowest latency, lowest CPU."}
             </p>
           </div>
 
@@ -223,83 +214,86 @@ export function ProfileFormDialog({
             </p>
           </div>
 
-          {/* Output Resolution */}
-          <div className="space-y-2">
-            <Label>Output Resolution</Label>
-            <Select value={resolution} onValueChange={setResolution}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {RESOLUTION_OPTIONS.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground">
-              Downscale video output. Will not upscale beyond camera native resolution.
-            </p>
-          </div>
+          {/* Transcode-only settings */}
+          {isTranscode && (
+            <>
+              {/* Output Resolution */}
+              <div className="space-y-2">
+                <Label>Output Resolution</Label>
+                <Select value={resolution} onValueChange={setResolution}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {RESOLUTION_OPTIONS.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Downscale video output. Will not upscale beyond camera native resolution.
+                </p>
+              </div>
 
-          {/* Max Framerate */}
-          <div className="space-y-2">
-            <Label>Max Framerate</Label>
-            <Select value={framerateOption} onValueChange={setFramerateOption}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {FRAMERATE_OPTIONS.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              {/* Max Framerate */}
+              <div className="space-y-2">
+                <Label>Max Framerate</Label>
+                <Select value={framerateOption} onValueChange={setFramerateOption}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {FRAMERATE_OPTIONS.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
 
-            {framerateOption === "custom" && (
-              <Input
-                type="number"
-                min={1}
-                max={60}
-                value={customFramerate}
-                onChange={(e) => setCustomFramerate(Number(e.target.value))}
-                placeholder="Enter framerate"
-              />
-            )}
+                {framerateOption === "custom" && (
+                  <Input
+                    type="number"
+                    min={1}
+                    max={60}
+                    value={customFramerate}
+                    onChange={(e) => setCustomFramerate(Number(e.target.value))}
+                    placeholder="Enter framerate"
+                  />
+                )}
 
-            {showTranscodingWarning && (
-              <Badge className="bg-yellow-100 text-yellow-700 hover:bg-yellow-200">
-                Requires transcoding &mdash; uses additional CPU
-              </Badge>
-            )}
-          </div>
+                {showTranscodingWarning && (
+                  <Badge className="bg-yellow-100 text-yellow-700 hover:bg-yellow-200">
+                    Requires transcoding &mdash; uses additional CPU
+                  </Badge>
+                )}
+              </div>
 
-          {/* Keyframe Interval */}
-          {codec !== "passthrough" && (
-            <div className="space-y-2">
-              <Label>Keyframe Interval</Label>
-              <Select
-                value={String(keyframeInterval)}
-                onValueChange={(v) => setKeyframeInterval(Number(v))}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="1">1 second (fastest start)</SelectItem>
-                  <SelectItem value="2">2 seconds (recommended)</SelectItem>
-                  <SelectItem value="4">4 seconds</SelectItem>
-                  <SelectItem value="5">5 seconds</SelectItem>
-                  <SelectItem value="10">10 seconds (lowest bandwidth)</SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                How often a full frame (keyframe) is inserted. Shorter = faster stream start but slightly more bandwidth.
-              </p>
-            </div>
+              {/* Keyframe Interval */}
+              <div className="space-y-2">
+                <Label>Keyframe Interval</Label>
+                <Select
+                  value={String(keyframeInterval)}
+                  onValueChange={(v) => setKeyframeInterval(Number(v))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">1 second (fastest start)</SelectItem>
+                    <SelectItem value="2">2 seconds (recommended)</SelectItem>
+                    <SelectItem value="4">4 seconds</SelectItem>
+                    <SelectItem value="5">5 seconds</SelectItem>
+                    <SelectItem value="10">10 seconds (lowest bandwidth)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  How often a full frame (keyframe) is inserted. Shorter = faster stream start but slightly more bandwidth.
+                </p>
+              </div>
+            </>
           )}
         </div>
 

@@ -51,9 +51,9 @@ export class LocalStorageProvider implements StorageProvider {
   }
 
   async getSignedUrl(key: string, _expiresInSec: number): Promise<string> {
-    // For local, return direct file path via origin
-    const originBase = process.env["ORIGIN_BASE_URL"] ?? "http://localhost:8888";
-    return `${originBase}/vod/${key}`;
+    // Use MediaMTX playback server to serve recorded segments
+    const playbackBase = process.env["MEDIAMTX_PLAYBACK_URL"] ?? "http://localhost:9996";
+    return `${playbackBase}/get?path=${encodeURIComponent(key)}`;
   }
 
   async exists(key: string): Promise<boolean> {

@@ -41,3 +41,4 @@ npm-debug.log*
 *.key
 *.pem
 *.crt
+docker/recordings/

@@ -5,8 +5,11 @@ import { Badge } from "@/components/ui/badge";
 import { RecBadge } from "@/components/cameras/rec-badge";
 import type { MapCamera } from "../../app/(public)/map/[projectKey]/page";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
-const FALLBACK_HLS_URL = process.env.NEXT_PUBLIC_MEDIAMTX_HLS_URL ?? "http://localhost:8888";
+const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001/api/v1").replace(/\/api\/v1$/, "");
+
+// Cache: don't re-request playback for cameras that already failed
+const failedCameraIds = new Set<string>();
+const urlCache = new Map<string, string>();
 
 interface CameraPinHoverProps {
   camera: MapCamera;
@@ -37,27 +40,34 @@ function LivePreview({ cameraId }: { cameraId: string }) {
   const hlsRef = useRef<{ destroy: () => void } | null>(null);
   const [hlsUrl, setHlsUrl] = useState<string | null>(null);
 
-  // Get playback URL via session (supports signed proxy) with fallback
+  // Get playback URL — cached, no retry on failure
   useEffect(() => {
+    if (failedCameraIds.has(cameraId)) return;
+    if (urlCache.has(cameraId)) { setHlsUrl(urlCache.get(cameraId)!); return; }
+
     async function getUrl() {
       try {
-        const token = typeof window !== "undefined" ? localStorage.getItem("auth_token") : null;
         const headers: Record<string, string> = { "Content-Type": "application/json" };
-        if (token) headers["Authorization"] = `Bearer ${token}`;
+        try {
+          const sessionRes = await fetch("/api/auth/session");
+          const session = await sessionRes.json();
+          if (session?.accessToken) headers["Authorization"] = `Bearer ${session.accessToken}`;
+        } catch { /* continue */ }
 
-        const res = await fetch(`${API_BASE_URL}/api/v1/playback/sessions`, {
+        const res = await fetch(`${API_BASE_URL}/api/v1/playback/internal/sessions`, {
           method: "POST",
           headers,
-          body: JSON.stringify({ camera_id: cameraId, ttl: 120 }),
+          body: JSON.stringify({ camera_id: cameraId }),
         });
         if (res.ok) {
           const data = await res.json();
+          urlCache.set(cameraId, data.data.playback_url);
           setHlsUrl(data.data.playback_url);
           return;
         }
-      } catch { /* fallback */ }
-      // Fallback to direct URL
-      setHlsUrl(`${FALLBACK_HLS_URL}/cam-${cameraId}-hls/index.m3u8`);
+        failedCameraIds.add(cameraId);
+        return;
+      } catch { failedCameraIds.add(cameraId); }
     }
     getUrl();
   }, [cameraId]);

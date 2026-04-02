@@ -11,7 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ShieldCheck, Gauge, Save, Loader2, MoreHorizontal } from "lucide-react";
+import { ShieldCheck, MoreHorizontal } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,11 +21,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { SortableTableHead, useTableSort } from "@/components/ui/sortable-table-head";
 import { TablePagination, useClientPagination } from "@/components/ui/table-pagination";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
-import { toast } from "sonner";
 import { apiClient } from "../../../lib/api-client";
 import { PolicyFormDialog } from "../../../components/policies/policy-form";
 
@@ -61,9 +56,6 @@ export default function PoliciesPage() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editingPolicy, setEditingPolicy] = useState<PolicyRow | null>(null);
 
-  // Quota state
-  const [viewerHoursQuota, setViewerHoursQuota] = useState("1000");
-  const [quotaSaving, setQuotaSaving] = useState(false);
 
   const fetchPolicies = useCallback(async () => {
     setLoading(true);
@@ -93,84 +85,20 @@ export default function PoliciesPage() {
     }
   };
 
-  async function handleQuotaSave() {
-    setQuotaSaving(true);
-    try {
-      await apiClient.patch("/tenants/me", {
-        viewer_hours_quota: parseInt(viewerHoursQuota, 10),
-      });
-      toast.success("Quota updated successfully");
-    } catch {
-      toast.error("Failed to update quota");
-    } finally {
-      setQuotaSaving(false);
-    }
-  }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Policies & Quotas</h1>
+          <h1 className="text-2xl font-bold">Policies</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Manage playback policies, rate limits, and usage quotas.
+            Manage playback policies and rate limits.
           </p>
         </div>
         <Button onClick={() => setCreateDialogOpen(true)}>
           Create Policy
         </Button>
       </div>
-
-      {/* Usage Quotas */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <Gauge className="size-5 text-muted-foreground" />
-            <div>
-              <CardTitle className="text-base">Usage Quotas</CardTitle>
-              <CardDescription>
-                Control viewer-hours limits for your tenant. Per-project quotas
-                can be set in individual policies.
-              </CardDescription>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-end gap-4">
-            <div className="space-y-2 flex-1 max-w-xs">
-              <Label htmlFor="viewer-hours-quota">
-                Monthly Viewer-Hours Limit
-              </Label>
-              <Input
-                id="viewer-hours-quota"
-                type="number"
-                value={viewerHoursQuota}
-                onChange={(e) => setViewerHoursQuota(e.target.value)}
-                placeholder="1000"
-              />
-              <p className="text-xs text-muted-foreground">
-                Total viewer-hours allowed per month across all projects. Set 0
-                for unlimited.
-              </p>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleQuotaSave}
-              disabled={quotaSaving}
-            >
-              {quotaSaving ? (
-                <Loader2 className="mr-1 size-3 animate-spin" />
-              ) : (
-                <Save className="mr-1 size-3" />
-              )}
-              Save Quota
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Separator />
 
       {loading ? (
         <div className="flex h-32 items-center justify-center text-muted-foreground">

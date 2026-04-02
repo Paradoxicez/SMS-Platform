@@ -31,7 +31,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { MoreHorizontal, MapPin } from "lucide-react"
+import { MoreHorizontal, MapPin, Copy, Check } from "lucide-react"
 import { BreadcrumbNav } from "@/components/breadcrumb-nav"
 import { SiteDialog } from "@/components/sites/site-dialog"
 import { RecordingSettingsDialog } from "@/components/recordings/recording-settings-dialog"
@@ -48,6 +48,7 @@ export default function ProjectDetailPage() {
   const [project, setProject] = useState<Project | null>(null)
   const [sites, setSites] = useState<Site[]>([])
   const [loading, setLoading] = useState(true)
+  const [copied, setCopied] = useState(false)
 
   // Edit project dialog
   const [editOpen, setEditOpen] = useState(false)
@@ -61,6 +62,7 @@ export default function ProjectDetailPage() {
   // Recording settings
   const [recordingSettingsOpen, setRecordingSettingsOpen] = useState(false)
   const [recordingSettingsSite, setRecordingSettingsSite] = useState<{ id: string; name: string } | null>(null)
+
 
   const fetchData = useCallback(async () => {
     setLoading(true)
@@ -186,13 +188,25 @@ export default function ProjectDetailPage() {
           {project.description && (
             <p className="mt-1 text-sm text-muted-foreground">{project.description}</p>
           )}
-          <div className="mt-2 flex items-center gap-4 text-sm text-muted-foreground">
-            <span>
-              Public Key:{" "}
-              <code className="bg-muted px-1.5 py-0.5 rounded text-xs">
-                {(project as any).publicKey ?? project.public_key}
-              </code>
-            </span>
+          <div className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
+            <MapPin className="size-3.5" />
+            <span>Public Map Link:</span>
+            <code className="bg-muted px-1.5 py-0.5 rounded text-xs">
+              {(project as any).publicKey ?? project.public_key}
+            </code>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-6"
+              onClick={() => {
+                const key = (project as any).publicKey ?? project.public_key
+                navigator.clipboard.writeText(`${window.location.origin}/map/public?project_key=${key}`)
+                setCopied(true)
+                setTimeout(() => setCopied(false), 2000)
+              }}
+            >
+              {copied ? <Check className="size-3.5 text-green-600" /> : <Copy className="size-3.5" />}
+            </Button>
           </div>
         </div>
         <div className="flex gap-2">

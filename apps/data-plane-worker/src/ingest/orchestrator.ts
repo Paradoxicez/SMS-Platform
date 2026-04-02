@@ -38,7 +38,6 @@ export interface CameraConfig {
   rtsp_url: string;
   name: string;
   credentials_encrypted?: string | null;
-  forwarding_target_url?: string | null;
   stream_profile?: StreamProfileConfig | null;
   recording_enabled?: boolean;
   recording_retention_days?: number;
@@ -94,10 +93,6 @@ export class IngestOrchestrator {
 
     if (ffmpegArgs) {
       pathConfig.runOnReady = ffmpegArgs;
-      pathConfig.runOnReadyRestart = true;
-    } else if (camera.forwarding_target_url) {
-      // Fallback: if no special processing but forwarding is set, use simple copy
-      pathConfig.runOnReady = `ffmpeg -i rtsp://localhost:8554/${pathName} -c copy -f flv ${camera.forwarding_target_url}`;
       pathConfig.runOnReadyRestart = true;
     }
 
@@ -296,10 +291,6 @@ export class IngestOrchestrator {
 
     // If no special processing needed, use standard repackage (no FFmpeg)
     if (!needsAudioProcessing && !needsFramerateLimit && !needsResolutionScale) {
-      // Still handle forwarding if set
-      if (camera.forwarding_target_url) {
-        return `ffmpeg -i rtsp://localhost:8554/${pathName} -c copy -f flv ${camera.forwarding_target_url}`;
-      }
       return null;
     }
 
@@ -333,12 +324,8 @@ export class IngestOrchestrator {
     }
 
     // Output handling
-    if (camera.forwarding_target_url) {
-      args.push("-c:v", "copy", "-f", "flv", camera.forwarding_target_url);
-    } else {
-      // Re-publish back to MediaMTX on a processed path
-      args.push("-c:v", "copy", "-f", "rtsp", `rtsp://localhost:8554/${pathName}-out`);
-    }
+    // Re-publish back to MediaMTX on a processed path
+    args.push("-c:v", "copy", "-f", "rtsp", `rtsp://localhost:8554/${pathName}-out`);
 
     return args.join(" ");
   }

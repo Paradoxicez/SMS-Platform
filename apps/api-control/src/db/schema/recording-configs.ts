@@ -27,7 +27,7 @@ export const recordingConfigs = pgTable(
     // For global: null. For site/project/camera: the entity UUID.
     scopeId: uuid("scope_id"),
 
-    // Recording mode: "continuous" | "scheduled" | "event_based"
+    // Recording mode: "continuous" | "scheduled"
     mode: varchar("mode", { length: 20 }).notNull().default("continuous"),
 
     // Schedule (only if mode=scheduled): JSON array of time windows

@@ -17,6 +17,7 @@ interface BulkActionsProps {
   onDownload: () => void
   onDelete: () => void
   onDeselectAll: () => void
+  canDelete?: boolean
 }
 
 export function BulkActions({
@@ -24,6 +25,7 @@ export function BulkActions({
   onDownload,
   onDelete,
   onDeselectAll,
+  canDelete = true,
 }: BulkActionsProps) {
   const [dialogOpen, setDialogOpen] = useState(false)
 
@@ -41,15 +43,17 @@ export function BulkActions({
             <Download className="size-3.5" />
             Download
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-1.5 text-destructive hover:text-destructive"
-            onClick={() => setDialogOpen(true)}
-          >
-            <Trash2 className="size-3.5" />
-            Delete
-          </Button>
+          {canDelete && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 text-destructive hover:text-destructive"
+              onClick={() => setDialogOpen(true)}
+            >
+              <Trash2 className="size-3.5" />
+              Delete
+            </Button>
+          )}
           <div className="h-4 w-px bg-border" />
           <Button variant="ghost" size="icon" className="size-7" onClick={onDeselectAll}>
             <X className="size-4" />

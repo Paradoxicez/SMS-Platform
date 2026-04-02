@@ -13,7 +13,7 @@ import type { MapCamera } from "../../app/(public)/map/[projectKey]/page";
  * Closing the dialog revokes the session.
  */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001/api/v1").replace(/\/api\/v1$/, "");
 
 interface PlayerDialogProps {
   camera: MapCamera;
@@ -66,18 +66,19 @@ export function PlayerDialog({
           ttl: 120,
         };
       } else {
-        // Authenticated console: use standard endpoint
-        url = `${API_BASE_URL}/api/v1/playback/sessions`;
+        // Authenticated console: use internal endpoint (original stream, no policy)
+        url = `${API_BASE_URL}/api/v1/playback/internal/sessions`;
         payload = {
           camera_id: camera.id,
-          ttl: 120,
         };
-        const token = typeof window !== "undefined"
-          ? localStorage.getItem("auth_token")
-          : null;
-        if (token) {
-          headers["Authorization"] = `Bearer ${token}`;
-        }
+        // Get token from NextAuth session
+        try {
+          const sessionRes = await fetch("/api/auth/session");
+          const session = await sessionRes.json();
+          if (session?.accessToken) {
+            headers["Authorization"] = `Bearer ${session.accessToken}`;
+          }
+        } catch { /* continue without token */ }
       }
 
       const res = await fetch(url, {
@@ -92,6 +93,9 @@ export function PlayerDialog({
 
         if (code === "QUOTA_EXCEEDED") {
           throw new Error("Viewer-hours quota exceeded. Please contact your administrator.");
+        }
+        if (res.status === 404) {
+          throw new Error("Camera is not streaming. Start the stream first.");
         }
 
         throw new Error(data?.error?.message ?? `Failed to start playback (HTTP ${res.status})`);
@@ -110,58 +114,42 @@ export function PlayerDialog({
     }
   }, [camera.id, projectKey]);
 
+  // Helper: get auth headers from NextAuth session
+  const getAuthHeaders = useCallback(async (): Promise<Record<string, string>> => {
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    try {
+      const sessionRes = await fetch("/api/auth/session");
+      const session = await sessionRes.json();
+      if (session?.accessToken) headers["Authorization"] = `Bearer ${session.accessToken}`;
+    } catch { /* continue without token */ }
+    return headers;
+  }, []);
+
   // Refresh the session before expiry
   const refreshSession = useCallback(async (sessionId: string) => {
     try {
-      const token = typeof window !== "undefined"
-        ? localStorage.getItem("auth_token")
-        : null;
-
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-      };
-      if (token) {
-        headers["Authorization"] = `Bearer ${token}`;
-      }
-
+      const headers = await getAuthHeaders();
       const res = await fetch(
         `${API_BASE_URL}/api/v1/playback/sessions/${sessionId}/refresh`,
         { method: "POST", headers },
       );
-
       if (res.ok) {
         const data = await res.json();
-        setSession((prev) =>
-          prev ? { ...prev, expires_at: data.data.expires_at } : prev,
-        );
+        setSession((prev) => prev ? { ...prev, expires_at: data.data.expires_at } : prev);
       }
-    } catch {
-      // Refresh failed silently — countdown will reach 0 and user can retry
-    }
-  }, []);
+    } catch { /* Refresh failed silently */ }
+  }, [getAuthHeaders]);
 
   // Revoke session on dialog close
   const revokeSession = useCallback(async (sessionId: string) => {
     try {
-      const token = typeof window !== "undefined"
-        ? localStorage.getItem("auth_token")
-        : null;
-
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-      };
-      if (token) {
-        headers["Authorization"] = `Bearer ${token}`;
-      }
-
+      const headers = await getAuthHeaders();
       await fetch(
         `${API_BASE_URL}/api/v1/playback/sessions/${sessionId}/revoke`,
         { method: "POST", headers },
       );
-    } catch {
-      // Best effort revocation
-    }
-  }, []);
+    } catch { /* Best effort revocation */ }
+  }, [getAuthHeaders]);
 
   // Initialize HLS player when session is ready
   useEffect(() => {
@@ -236,12 +224,15 @@ export function PlayerDialog({
     return () => clearInterval(interval);
   }, [session, refreshSession]);
 
-  // Issue session on open
+  // Issue session on open — only once, don't retry on error
+  const issuedRef = useRef(false);
   useEffect(() => {
-    if (open && !session && !loading) {
+    if (open && !session && !loading && !error && !issuedRef.current) {
+      issuedRef.current = true;
       issueSession();
     }
-  }, [open, session, loading, issueSession]);
+    if (!open) issuedRef.current = false;
+  }, [open, session, loading, error, issueSession]);
 
   // Cleanup on close
   const handleClose = useCallback(() => {

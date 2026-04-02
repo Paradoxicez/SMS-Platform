@@ -4,6 +4,7 @@ import {
   updateStreamProfileSchema,
 } from "@repo/types";
 import { requireRole } from "../middleware/rbac";
+import { requireFeature } from "../middleware/feature-gate";
 import {
   createProfile,
   listProfiles,
@@ -16,6 +17,10 @@ import {
 import type { AppEnv } from "../types";
 
 const streamProfilesRouter = new Hono<AppEnv>();
+
+// All stream-profile routes require the "stream_profiles" feature
+streamProfilesRouter.use("/stream-profiles/*", requireFeature("stream_profiles"));
+streamProfilesRouter.use("/stream-profiles", requireFeature("stream_profiles"));
 
 // POST /stream-profiles — create
 streamProfilesRouter.post(

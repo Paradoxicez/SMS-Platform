@@ -22,9 +22,11 @@ function timeAgo(dateStr: string): string {
 }
 
 function severityColor(type: string): string {
-  if (type.includes("offline")) return "bg-red-500";
+  if (type.includes("offline") || type.includes("deleted")) return "bg-red-500";
   if (type.includes("degraded")) return "bg-yellow-500";
-  if (type.includes("denied")) return "bg-orange-500";
+  if (type.includes("denied") || type.includes("disabled")) return "bg-orange-500";
+  if (type.includes("online") || type.includes("created") || type.includes("enabled")) return "bg-green-500";
+  if (type.includes("role_changed")) return "bg-purple-500";
   return "bg-blue-500";
 }
 

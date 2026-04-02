@@ -218,7 +218,6 @@ export function RecordingSettingsDialog({
                     <SelectContent>
                       <SelectItem value="continuous">Continuous (24/7)</SelectItem>
                       <SelectItem value="scheduled">Scheduled</SelectItem>
-                      <SelectItem value="event_based">Event-based</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useCameraStatusStream } from "@/hooks/use-camera-status-stream";
 
 import {
@@ -17,10 +17,12 @@ import type { Camera } from "@repo/types";
 import { formatDateTime } from "@/lib/format-date";
 import { apiClient, type CameraHealthStatus } from "../../lib/api-client";
 import { HlsPlayer } from "@/components/player/hls-player";
+import { WebRTCPlayer } from "@/components/player/webrtc-player";
 import { VideoOff, Code2, Settings2 } from "lucide-react";
 import { EmbedCodeDialog } from "./embed-code-dialog";
 import { RecordingSettingsDialog } from "@/components/recordings/recording-settings-dialog";
 import { RecBadge } from "@/components/cameras/rec-badge";
+import { useUserRole } from "@/lib/use-user-role";
 
 interface CameraDetailSheetProps {
   camera: Camera;
@@ -90,6 +92,7 @@ export function CameraDetailSheet({
   onStop,
   onUpdated: _onUpdated,
 }: CameraDetailSheetProps) {
+  const { canEdit } = useUserRole();
   const [healthStatus, setHealthStatus] = useState<CameraHealthStatus | null>(
     null,
   );
@@ -97,10 +100,13 @@ export function CameraDetailSheet({
   const [embedDialogOpen, setEmbedDialogOpen] = useState(false);
   const [localStatus, setLocalStatus] = useState<string | null>(null);
   const [profileName, setProfileName] = useState("Default");
-  const [bandwidth, setBandwidth] = useState<{ bytesIn: number; bytesOut: number } | null>(null);
+  const [_bandwidth, setBandwidth] = useState<{ bytesIn: number; bytesOut: number } | null>(null);
+  const [bitrate, setBitrate] = useState<{ inMbps: number; outMbps: number } | null>(null);
+  const prevBandwidthRef = useRef<{ bytesIn: number; bytesOut: number; time: number } | null>(null);
   const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
   const [recordingLoading, setRecordingLoading] = useState(false);
   const [recordingSettingsOpen, setRecordingSettingsOpen] = useState(false);
+  const [viewerCount, setViewerCount] = useState(0);
 
   const currentStatus =
     localStatus ??
@@ -113,6 +119,19 @@ export function CameraDetailSheet({
       setLocalStatus(event.new_state);
     }
   });
+
+  // Poll viewer count
+  useEffect(() => {
+    function fetchViewers() {
+      apiClient
+        .get<{ data: { per_camera: Record<string, number> } }>("/cameras/status/viewers")
+        .then((res) => setViewerCount(res.data.per_camera?.[camera.id] ?? 0))
+        .catch(() => {});
+    }
+    fetchViewers();
+    const interval = setInterval(fetchViewers, 5000);
+    return () => clearInterval(interval);
+  }, [camera.id]);
 
   useEffect(() => {
     setLocalStatus(null);
@@ -152,22 +171,14 @@ export function CameraDetailSheet({
       setPlaybackUrl(null);
       if (isOnline) {
         apiClient
-          .post<{ data: { playback_url: string } }>("/playback/sessions", {
+          .post<{ data: { playback_url: string } }>("/playback/internal/sessions", {
             camera_id: camera.id,
-            ttl: 300,
           })
           .then((res) => setPlaybackUrl(res.data.playback_url))
-          .catch(async () => {
-            // Fallback: try -hls path first (transcoded), then original path
+          .catch(() => {
+            // Fallback: use original stream path (always works)
             const base = process.env.NEXT_PUBLIC_MEDIAMTX_HLS_URL ?? "http://localhost:8888";
-            const hlsUrl = `${base}/cam-${camera.id}-hls/index.m3u8`;
-            const originalUrl = `${base}/cam-${camera.id}/index.m3u8`;
-            try {
-              const res = await fetch(hlsUrl, { method: "HEAD" });
-              setPlaybackUrl(res.ok ? hlsUrl : originalUrl);
-            } catch {
-              setPlaybackUrl(originalUrl);
-            }
+            setPlaybackUrl(`${base}/cam-${camera.id}/index.m3u8`);
           });
       }
     }
@@ -219,6 +230,20 @@ export function CameraDetailSheet({
             }
           }
           setBandwidth({ bytesIn: totalIn, bytesOut: totalOut });
+
+          // Calculate realtime bitrate from delta
+          const now = Date.now();
+          const prev = prevBandwidthRef.current;
+          if (prev && totalIn > prev.bytesIn) {
+            const dtSec = (now - prev.time) / 1000;
+            if (dtSec > 0) {
+              setBitrate({
+                inMbps: ((totalIn - prev.bytesIn) * 8) / dtSec / 1_000_000,
+                outMbps: ((totalOut - prev.bytesOut) * 8) / dtSec / 1_000_000,
+              });
+            }
+          }
+          prevBandwidthRef.current = { bytesIn: totalIn, bytesOut: totalOut, time: now };
         })
         .catch(() => {});
     }
@@ -249,7 +274,12 @@ export function CameraDetailSheet({
           {/* Stream Preview */}
           <div className="relative">
             {isRecording && <RecBadge className="absolute top-2 left-2 z-10" />}
-            {isOnline && playbackUrl ? (
+            {isOnline && playbackUrl && playbackUrl.includes("/whep") ? (
+              <WebRTCPlayer
+                cameraPath={playbackUrl.split("/").slice(-2, -1)[0] ?? ""}
+                className="rounded-lg"
+              />
+            ) : isOnline && playbackUrl ? (
               <HlsPlayer
                 src={playbackUrl}
                 autoPlay
@@ -270,6 +300,12 @@ export function CameraDetailSheet({
               </div>
             )}
           </div>
+
+          {isOnline && viewerCount > 0 && (
+            <p className="text-xs text-muted-foreground mt-1">
+              {viewerCount} viewer{viewerCount !== 1 ? "s" : ""} watching
+            </p>
+          )}
 
           <div>
             <Tabs defaultValue="info" className="space-y-4">
@@ -347,74 +383,111 @@ export function CameraDetailSheet({
                       <span className="text-sm font-medium text-muted-foreground">Profile</span>
                       <Badge variant="outline">{profileName}</Badge>
                     </div>
+
+                    {/* Source Info */}
+                    {(camera as any).source_codec && (
+                      <div className="pt-3 border-t space-y-2">
+                        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Source Info</span>
+                        <div className="grid grid-cols-[100px_1fr] gap-2 items-baseline">
+                          <span className="text-sm font-medium text-muted-foreground">Codec</span>
+                          <span className="text-sm">
+                            {(camera as any).source_codec}
+                            {(camera as any).source_codec === "H265" && (
+                              <span className="ml-2 text-xs text-yellow-600">(auto transcode)</span>
+                            )}
+                          </span>
+                        </div>
+                        {(camera as any).source_resolution && (
+                          <div className="grid grid-cols-[100px_1fr] gap-2 items-baseline">
+                            <span className="text-sm font-medium text-muted-foreground">Resolution</span>
+                            <span className="text-sm">{(camera as any).source_resolution}</span>
+                          </div>
+                        )}
+                        {(camera as any).source_fps && (
+                          <div className="grid grid-cols-[100px_1fr] gap-2 items-baseline">
+                            <span className="text-sm font-medium text-muted-foreground">FPS</span>
+                            <span className="text-sm">{(camera as any).source_fps}</span>
+                          </div>
+                        )}
+                        {(camera as any).source_audio && (
+                          <div className="grid grid-cols-[100px_1fr] gap-2 items-baseline">
+                            <span className="text-sm font-medium text-muted-foreground">Audio</span>
+                            <span className="text-sm">{(camera as any).source_audio}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                   </div>
 
-                    {/* Actions */}
-                    <div className="flex gap-2 pt-4 border-t">
-                      {isStopped ? (
-                        <Button
-                          className="flex-1"
-                          onClick={() => {
-                            setLocalStatus("connecting");
-                            onStart(camera.id);
-                          }}
-                        >
-                          Start Stream
-                        </Button>
-                      ) : currentStatus === "stopping" ? (
+                    {/* Actions — hidden for viewer role */}
+                    {canEdit && (
+                      <div className="flex gap-2 pt-4 border-t">
+                        {isStopped ? (
+                          <Button
+                            className="flex-1"
+                            onClick={() => {
+                              setLocalStatus("connecting");
+                              onStart(camera.id);
+                            }}
+                          >
+                            Start Stream
+                          </Button>
+                        ) : currentStatus === "stopping" ? (
+                          <Button
+                            variant="outline"
+                            className="flex-1"
+                            disabled
+                          >
+                            Stopping...
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="destructive"
+                            className="flex-1"
+                            onClick={() => {
+                              setLocalStatus("stopping");
+                              onStop(camera.id);
+                            }}
+                          >
+                            Stop Stream
+                          </Button>
+                        )}
                         <Button
                           variant="outline"
-                          className="flex-1"
-                          disabled
+                          size="icon"
+                          className={`shrink-0 ${isRecording ? "border-red-500 bg-red-50 dark:bg-red-950/20" : ""}`}
+                          onClick={handleRecordingClick}
+                          disabled={recordingLoading}
+                          title={isRecording ? "Stop Recording" : "Start Recording"}
                         >
-                          Stopping...
+                          <span className="relative flex h-3.5 w-3.5">
+                            {isRecording && (
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-75" />
+                            )}
+                            <span className="relative inline-flex h-3.5 w-3.5 rounded-full bg-red-500" />
+                          </span>
                         </Button>
-                      ) : (
                         <Button
-                          variant="destructive"
-                          className="flex-1"
-                          onClick={() => {
-                            setLocalStatus("stopping");
-                            onStop(camera.id);
-                          }}
+                          variant="outline"
+                          size="icon"
+                          className="shrink-0"
+                          onClick={() => setRecordingSettingsOpen(true)}
+                          title="Recording Settings"
                         >
-                          Stop Stream
+                          <Settings2 className="size-4" />
                         </Button>
-                      )}
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className={`shrink-0 ${isRecording ? "border-red-500 bg-red-50 dark:bg-red-950/20" : ""}`}
-                        onClick={handleRecordingClick}
-                        disabled={recordingLoading}
-                        title={isRecording ? "Stop Recording" : "Start Recording"}
-                      >
-                        <span className="relative flex h-3.5 w-3.5">
-                          {isRecording && (
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-75" />
-                          )}
-                          <span className="relative inline-flex h-3.5 w-3.5 rounded-full bg-red-500" />
-                        </span>
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="shrink-0"
-                        onClick={() => setRecordingSettingsOpen(true)}
-                        title="Recording Settings"
-                      >
-                        <Settings2 className="size-4" />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="shrink-0"
-                        onClick={() => setEmbedDialogOpen(true)}
-                        title="Get Embed Code"
-                      >
-                        <Code2 className="size-4" />
-                      </Button>
-                    </div>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="shrink-0"
+                          onClick={() => setEmbedDialogOpen(true)}
+                          title="Get Embed Code"
+                        >
+                          <Code2 className="size-4" />
+                        </Button>
+                      </div>
+                    )}
               </TabsContent>
 
               <TabsContent value="stream" className="space-y-4">
@@ -494,22 +567,22 @@ export function CameraDetailSheet({
                       </>
                     )}
 
-                    {bandwidth && (
+                    {bitrate && (
                       <>
                         <div className="flex justify-between">
                           <span className="text-sm font-medium text-muted-foreground">
-                            Data Received
+                            Inbound
                           </span>
-                          <span className="text-sm">
-                            {(bandwidth.bytesIn / 1024 / 1024).toFixed(1)} MB
+                          <span className="text-sm font-mono">
+                            {bitrate.inMbps.toFixed(2)} Mbps
                           </span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-sm font-medium text-muted-foreground">
-                            Data Sent
+                            Outbound
                           </span>
-                          <span className="text-sm">
-                            {(bandwidth.bytesOut / 1024 / 1024).toFixed(1)} MB
+                          <span className="text-sm font-mono">
+                            {bitrate.outMbps.toFixed(2)} Mbps
                           </span>
                         </div>
                       </>

@@ -2,8 +2,10 @@ import { createHmac } from "node:crypto";
 import Redis from "ioredis";
 
 const REDIS_URL = process.env["REDIS_URL"] ?? "redis://localhost:6379";
-const SESSION_SECRET =
-  process.env["SESSION_SECRET"] ?? "dev-session-secret-change-me";
+if (!process.env["SESSION_SECRET"]) {
+  throw new Error("SESSION_SECRET environment variable is required");
+}
+const SESSION_SECRET = process.env["SESSION_SECRET"];
 
 const redis = new Redis(REDIS_URL, {
   maxRetriesPerRequest: 3,

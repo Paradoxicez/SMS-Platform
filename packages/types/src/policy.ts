@@ -23,8 +23,8 @@ export const createPolicySchema = z.object({
   ttl_max: z.number().int().positive().optional(),
   ttl_default: z.number().int().positive().optional(),
   domain_allowlist: z.array(z.string()).optional(),
-  rate_limit_per_min: z.number().int().positive().optional(),
-  viewer_concurrency_limit: z.number().int().positive().optional(),
+  rate_limit_per_min: z.number().int().nonnegative().optional(),
+  viewer_concurrency_limit: z.number().int().nonnegative().optional(),
 });
 
 export type CreatePolicyInput = z.infer<typeof createPolicySchema>;
@@ -35,8 +35,8 @@ export const updatePolicySchema = z.object({
   ttl_max: z.number().int().positive().optional(),
   ttl_default: z.number().int().positive().optional(),
   domain_allowlist: z.array(z.string()).nullable().optional(),
-  rate_limit_per_min: z.number().int().positive().optional(),
-  viewer_concurrency_limit: z.number().int().positive().optional(),
+  rate_limit_per_min: z.number().int().nonnegative().optional(),
+  viewer_concurrency_limit: z.number().int().nonnegative().optional(),
   version: z.number().int(),
 });
 

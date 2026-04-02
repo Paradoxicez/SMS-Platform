@@ -1,8 +1,14 @@
 import "dotenv/config";
+import { validateEnv } from "./lib/env";
+
+// Validate environment variables before anything else
+validateEnv();
+
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { serve } from "@hono/node-server";
 import { authMiddleware } from "./middleware/auth";
+import { rateLimitMiddleware } from "./middleware/rate-limit";
 import { errorHandler } from "./middleware/error-handler";
 import { loggerMiddleware } from "./middleware/logger";
 import { tenantsRouter } from "./routes/tenants";
@@ -20,11 +26,11 @@ import { healthRouter } from "./routes/health";
 import { notificationsRouter } from "./routes/notifications";
 import { invitationsRouter, publicInvitationsRouter } from "./routes/invitations";
 import { mediamtxRouter } from "./routes/mediamtx";
-import { forwardingRouter } from "./routes/forwarding";
 import { streamProfilesRouter } from "./routes/stream-profiles";
 import { startHealthSubscriber } from "./services/health-subscriber";
 import { generateOpenApiSpec } from "./openapi";
 import { authRouter } from "./routes/auth";
+import { mfaRouter } from "./routes/mfa";
 import { onboardingRouter } from "./routes/onboarding";
 import { plansRouter } from "./routes/plans";
 import { licenseRouter } from "./routes/license";
@@ -35,11 +41,11 @@ import { webhooksRouter } from "./routes/webhooks";
 import { dataManagementRouter } from "./routes/data-management";
 import { developerRouter } from "./routes/developer";
 import { recordingsRouter } from "./routes/recordings";
-import { aiIntegrationsRouter } from "./routes/ai-integrations";
 import { redis } from "./lib/redis";
 import { stopHealthSubscriber } from "./services/health-subscriber";
 import { toSnakeCase } from "./lib/case-transform";
 import { startStreamSync, stopStreamSync } from "./services/stream-sync";
+import { startRecordingScheduler } from "./services/recording-scheduler";
 import { systemMetricsRouter } from "./routes/system-metrics";
 import { streamProxyRouter } from "./routes/stream-proxy";
 import { startMetricsCollector, stopMetricsCollector } from "./services/system-metrics";
@@ -51,7 +57,12 @@ const app = new Hono<AppEnv>();
 app.use(
   "*",
   cors({
-    origin: process.env["CORS_ORIGIN"] ?? "http://localhost:3000",
+    origin: process.env["CORS_ORIGIN"] ?? (() => {
+      if (process.env["NODE_ENV"] === "production") {
+        throw new Error("CORS_ORIGIN environment variable is required in production");
+      }
+      return "http://localhost:3000";
+    })(),
     allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowHeaders: ["Content-Type", "Authorization", "X-API-Key"],
     exposeHeaders: ["X-RateLimit-Limit", "X-RateLimit-Remaining", "X-RateLimit-Reset"],
@@ -102,14 +113,44 @@ app.route("/api/v1/system", systemMetricsRouter);
 // Stream proxy (no auth — token in URL is the auth)
 app.route("/api/v1", streamProxyRouter);
 
+// Camera thumbnails (no auth — loaded by <img> tags)
+app.get("/api/v1/cameras/:id/thumbnail", async (c) => {
+  const cameraId = c.req.param("id");
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+
+  const recordingsBase = process.env["RECORDING_STORAGE_PATH"]
+    ?? path.join(process.cwd(), "..", "..", "docker", "recordings");
+  const thumbPath = path.join(recordingsBase, `cam-${cameraId}`, "thumbnail.jpg");
+
+  try {
+    const stat = fs.statSync(thumbPath);
+    const stream = fs.createReadStream(thumbPath);
+    return new Response(stream as unknown as ReadableStream, {
+      status: 200,
+      headers: {
+        "Content-Type": "image/jpeg",
+        "Content-Length": String(stat.size),
+        "Cache-Control": "public, max-age=30",
+      },
+    });
+  } catch {
+    return c.json(
+      { error: { code: "NOT_FOUND", message: "No thumbnail available" } },
+      404,
+    );
+  }
+});
+
 // OpenAPI docs (no auth required)
 app.get("/api/v1/docs", (c) => {
   return c.json(generateOpenApiSpec());
 });
 
-// Apply auth middleware for all /api routes
+// Apply auth + rate limit middleware for all /api routes
 const api = new Hono<AppEnv>();
 api.use("/*", authMiddleware);
+api.use("/*", rateLimitMiddleware);
 
 // Mount routes under /api/v1
 api.route("/tenants", tenantsRouter);
@@ -119,12 +160,12 @@ api.route("/", camerasRouter); // handles /sites/:siteId/cameras and /cameras/*
 api.route("/playback", playbackRouter); // handles /playback/sessions/*
 api.route("/policies", policiesRouter);
 api.route("/", usersRouter); // handles /users/*
+api.route("/", mfaRouter); // handles /mfa/*
 api.route("/", apiClientsRouter); // handles /api-clients/*
 api.route("/", auditRouter); // handles /audit/*
 api.route("/", notificationsRouter); // handles /notifications/*
 api.route("/", invitationsRouter); // handles /users/invite, /users/invitations
 api.route("/", mediamtxRouter); // handles /mediamtx/*
-api.route("/", forwardingRouter); // handles /forwarding/*
 api.route("/", streamProfilesRouter); // handles /stream-profiles/*
 api.route("/", onboardingRouter); // handles /onboarding/*
 api.route("/", licenseRouter); // handles /license/*
@@ -133,7 +174,6 @@ api.route("/", webhooksRouter); // handles /webhooks/*
 api.route("/", dataManagementRouter); // handles /data/*
 api.route("/", developerRouter); // handles /developer/*
 api.route("/", recordingsRouter); // handles /cameras/:id/recording/*, /recordings/*
-api.route("/", aiIntegrationsRouter); // handles /ai-integrations/*
 app.route("/api/v1", api);
 
 // Legacy root endpoint
@@ -156,6 +196,9 @@ try {
 
 // Start stream sync — auto-recover cameras when MediaMTX restarts
 startStreamSync();
+
+// Start recording scheduler — toggle record on/off for scheduled cameras
+startRecordingScheduler();
 
 // Start system metrics collector (every 60s)
 startMetricsCollector(60_000);

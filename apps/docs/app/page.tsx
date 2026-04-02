@@ -26,7 +26,7 @@ export default function DocsHome() {
           </h2>
           <p style={{ color: "#666", margin: 0, fontSize: "14px" }}>
             REST API endpoints for cameras, projects, sites, playback sessions,
-            webhooks, recordings, and AI integrations.
+            webhooks, and recordings.
           </p>
         </a>
 

@@ -31,6 +31,9 @@ interface UpdateProfileParams {
   tenantId: string;
   name?: string;
   email?: string;
+  timezone?: string;
+  dateFormat?: string;
+  timeFormat?: string;
   sourceIp?: string;
 }
 
@@ -128,11 +131,14 @@ export async function listUsers(params: ListUsersParams) {
 }
 
 export async function updateProfile(params: UpdateProfileParams) {
-  const { userId, tenantId, name, email, sourceIp } = params;
+  const { userId, tenantId, name, email, timezone, dateFormat, timeFormat, sourceIp } = params;
 
   const updateFields: Record<string, unknown> = {};
   if (name !== undefined) updateFields.name = name;
   if (email !== undefined) updateFields.email = email;
+  if (timezone !== undefined) updateFields.timezone = timezone;
+  if (dateFormat !== undefined) updateFields.dateFormat = dateFormat;
+  if (timeFormat !== undefined) updateFields.timeFormat = timeFormat;
 
   if (Object.keys(updateFields).length === 0) {
     // Nothing to update, just return current user

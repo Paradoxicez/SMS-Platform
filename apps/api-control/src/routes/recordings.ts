@@ -6,6 +6,7 @@ import {
   enableRecording,
   disableRecording,
   listRecordings,
+  listAllRecordings,
   createVodSession,
 } from "../services/recordings";
 import {
@@ -15,6 +16,7 @@ import {
   getStorageUsage,
   type ScopeType,
 } from "../services/recording-config";
+import { notifyTenantUsers } from "../services/notifications";
 import type { AppEnv } from "../types";
 
 const enableRecordingSchema = z.object({
@@ -26,6 +28,25 @@ const enableRecordingSchema = z.object({
  * Recording routes — all gated by "recording" feature flag.
  */
 const recordingsRouter = new Hono<AppEnv>();
+
+/** Map Drizzle camelCase recording row to snake_case API response */
+function toSnake(rec: Record<string, unknown>) {
+  return {
+    id: rec.id,
+    camera_id: rec.cameraId,
+    tenant_id: rec.tenantId,
+    start_time: rec.startTime,
+    end_time: rec.endTime,
+    file_path: rec.filePath,
+    file_format: rec.fileFormat,
+    size_bytes: rec.sizeBytes,
+    retention_days: rec.retentionDays,
+    storage_type: rec.storageType,
+    s3_bucket: rec.s3Bucket,
+    s3_key: rec.s3Key,
+    created_at: rec.createdAt,
+  };
+}
 
 // POST /cameras/:id/recording/enable
 recordingsRouter.post(
@@ -47,6 +68,12 @@ recordingsRouter.post(
 
     try {
       const result = await enableRecording(cameraId, tenantId, parsed.data.retention_days, parsed.data.storage_type);
+      notifyTenantUsers(tenantId, {
+        type: "recording.enabled",
+        title: "Recording started",
+        message: `Recording enabled for camera ${cameraId.slice(0, 8)}... (${parsed.data.retention_days} day retention).`,
+        link: `/recordings`,
+      });
       return c.json({ data: result });
     } catch (err) {
       return c.json(
@@ -68,6 +95,12 @@ recordingsRouter.post(
 
     try {
       const result = await disableRecording(cameraId, tenantId);
+      notifyTenantUsers(tenantId, {
+        type: "recording.disabled",
+        title: "Recording stopped",
+        message: `Recording disabled for camera ${cameraId.slice(0, 8)}...`,
+        link: `/recordings`,
+      });
       return c.json({ data: result });
     } catch (err) {
       return c.json(
@@ -78,10 +111,35 @@ recordingsRouter.post(
   },
 );
 
+// GET /recordings — list all recordings across cameras
+recordingsRouter.get(
+  "/recordings",
+  requireRole("admin", "operator", "developer", "viewer"),
+  requireFeature("recording"),
+  async (c) => {
+    const tenantId = c.get("tenantId");
+    const from = c.req.query("from") ? new Date(c.req.query("from")!) : undefined;
+    const to = c.req.query("to") ? new Date(c.req.query("to")!) : undefined;
+    const page = parseInt(c.req.query("page") ?? "1", 10);
+    const perPage = Math.min(parseInt(c.req.query("per_page") ?? "20", 10), 100);
+
+    const { items, total } = await listAllRecordings(tenantId, from, to, page, perPage);
+    return c.json({
+      data: items.map((r) => toSnake(r as unknown as Record<string, unknown>)),
+      meta: {
+        page,
+        per_page: perPage,
+        total,
+        total_pages: Math.ceil(total / perPage),
+      },
+    });
+  },
+);
+
 // GET /cameras/:id/recordings — list recordings by date range
 recordingsRouter.get(
   "/cameras/:id/recordings",
-  requireRole("admin", "operator", "viewer"),
+  requireRole("admin", "operator", "developer", "viewer"),
   requireFeature("recording"),
   async (c) => {
     const tenantId = c.get("tenantId");
@@ -93,7 +151,7 @@ recordingsRouter.get(
 
     const { items, total } = await listRecordings(cameraId, tenantId, from, to, page, perPage);
     return c.json({
-      data: items,
+      data: items.map((r) => toSnake(r as unknown as Record<string, unknown>)),
       meta: {
         page,
         per_page: perPage,
@@ -107,7 +165,7 @@ recordingsRouter.get(
 // POST /recordings/:id/playback — create VOD session
 recordingsRouter.post(
   "/recordings/:id/playback",
-  requireRole("admin", "operator", "viewer"),
+  requireRole("admin", "operator", "developer", "viewer"),
   requireFeature("recording"),
   async (c) => {
     const tenantId = c.get("tenantId");
@@ -121,6 +179,81 @@ recordingsRouter.post(
         { error: { code: "NOT_FOUND", message: err instanceof Error ? err.message : "Error" } },
         404,
       );
+    }
+  },
+);
+
+// GET /recordings/:id/stream — serve recording file directly (Safari-compatible)
+recordingsRouter.get(
+  "/recordings/:id/stream",
+  requireRole("admin", "operator", "developer", "viewer"),
+  requireFeature("recording"),
+  async (c) => {
+    const tenantId = c.get("tenantId");
+    const recordingId = c.req.param("id");
+
+    const { withTenantContext } = await import("../db/client");
+    const { recordings } = await import("../db/schema/recordings");
+    const { eq, and } = await import("drizzle-orm");
+
+    const recording = await withTenantContext(tenantId, async (tx) => {
+      return tx.query.recordings.findFirst({
+        where: and(eq(recordings.id, recordingId), eq(recordings.tenantId, tenantId)),
+      });
+    });
+
+    if (!recording) {
+      return c.json({ error: { code: "NOT_FOUND", message: "Recording not found" } }, 404);
+    }
+
+    // Resolve file path on host (recordings are bind-mounted from docker/recordings/)
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+
+    // filePath is like "./recordings/cam-xxx/2026-xxx.mp4" — resolve relative to project root
+    const recordingsBase = process.env["RECORDING_STORAGE_PATH"] ?? path.join(process.cwd(), "..", "..", "docker", "recordings");
+    // Strip leading ./recordings/ from the DB path to get the relative portion
+    const relativePath = recording.filePath.replace(/^\.\/recordings\//, "");
+    const fullPath = path.join(recordingsBase, relativePath);
+
+    try {
+      const stat = fs.statSync(fullPath);
+      const fileSize = stat.size;
+      const range = c.req.header("range");
+
+      if (range) {
+        // Byte-range request (Safari uses this for seeking)
+        const parts = range.replace(/bytes=/, "").split("-");
+        const start = parseInt(parts[0]!, 10);
+        const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+        const chunkSize = end - start + 1;
+
+        const stream = fs.createReadStream(fullPath, { start, end });
+        return new Response(stream as unknown as ReadableStream, {
+          status: 206,
+          headers: {
+            "Content-Range": `bytes ${start}-${end}/${fileSize}`,
+            "Accept-Ranges": "bytes",
+            "Content-Length": String(chunkSize),
+            "Content-Type": "video/mp4",
+            "Cache-Control": "public, max-age=3600",
+          },
+        });
+      }
+
+      // Full file response
+      const stream = fs.createReadStream(fullPath);
+      return new Response(stream as unknown as ReadableStream, {
+        status: 200,
+        headers: {
+          "Accept-Ranges": "bytes",
+          "Content-Length": String(fileSize),
+          "Content-Type": "video/mp4",
+          "Cache-Control": "public, max-age=3600",
+        },
+      });
+    } catch {
+      return c.json({ error: { code: "NOT_FOUND", message: "Recording file not found" } }, 404);
     }
   },
 );

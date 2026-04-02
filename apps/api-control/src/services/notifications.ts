@@ -1,6 +1,7 @@
 import { eq, and, desc, count } from "drizzle-orm";
 import { db, withTenantContext } from "../db/client";
 import { notifications } from "../db/schema/notifications";
+import { users } from "../db/schema/users";
 import Redis from "ioredis";
 
 const REDIS_URL = process.env["REDIS_URL"] ?? "redis://localhost:6379";
@@ -133,4 +134,42 @@ export async function getUnreadCount(
   });
 
   return result[0]?.count ?? 0;
+}
+
+/**
+ * Send a notification to all admins (and optionally operators) in a tenant.
+ * Best-effort — errors are swallowed.
+ */
+export async function notifyTenantUsers(
+  tenantId: string,
+  params: {
+    type: string;
+    title: string;
+    message: string;
+    link?: string;
+    roles?: string[];
+  },
+) {
+  const targetRoles = params.roles ?? ["admin", "operator"];
+  try {
+    const tenantUsers = await db
+      .select({ id: users.id, role: users.role })
+      .from(users)
+      .where(eq(users.tenantId, tenantId));
+
+    const targets = tenantUsers.filter((u) => targetRoles.includes(u.role));
+
+    for (const user of targets) {
+      createNotification({
+        userId: user.id,
+        tenantId,
+        type: params.type,
+        title: params.title,
+        message: params.message,
+        link: params.link,
+      }).catch(() => {});
+    }
+  } catch {
+    // best-effort
+  }
 }

@@ -11,7 +11,6 @@ export { auditEvents, actorTypeEnum } from "./audit-events";
 export { notifications } from "./notifications";
 export { invitations } from "./invitations";
 export { mediamtxConfigs, mediamtxConfigHistory } from "./mediamtx-configs";
-export { forwardingRules } from "./forwarding-rules";
 export {
   streamProfiles,
   outputProtocolEnum,
@@ -23,7 +22,6 @@ export { subscriptionPlans } from "./subscription-plans";
 export { invoices, payments } from "./billing";
 export { webhooks, webhookDeliveries } from "./webhooks";
 export { recordings } from "./recordings";
-export { aiIntegrations, aiEvents } from "./ai-integrations";
 export { verificationTokens } from "./verification-tokens";
 export { licenses } from "./licenses";
 export { recordingConfigs } from "./recording-configs";

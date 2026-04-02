@@ -9,6 +9,7 @@ import {
 import { tenants } from "./tenants";
 import { projects } from "./projects";
 import { streamProfiles } from "./stream-profiles";
+import { policies } from "./policies";
 
 export const sites = pgTable("sites", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -25,6 +26,9 @@ export const sites = pgTable("sites", {
   timezone: varchar("timezone", { length: 63 }).notNull().default("UTC"),
   defaultProfileId: uuid("default_profile_id").references(
     () => streamProfiles.id,
+  ),
+  defaultPolicyId: uuid("default_policy_id").references(
+    () => policies.id,
   ),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()

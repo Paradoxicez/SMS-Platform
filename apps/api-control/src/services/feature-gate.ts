@@ -6,6 +6,7 @@ import {
   getEffectiveFeatures,
   hasFeature as licenseHasFeature,
 } from "./license";
+import { getUsage as getViewerHoursUsage } from "./quota";
 
 export interface PlanLimits {
   maxCameras: number;
@@ -21,24 +22,31 @@ export interface UsageSummary {
   projects: { current: number; limit: number };
   users: { current: number; limit: number };
   viewerHoursQuota: number;
+  features: Record<string, boolean>;
   planName: string;
   planDisplayName: string;
 }
 
 const DEFAULT_LIMITS: PlanLimits = {
-  maxCameras: 5,
+  maxCameras: 3,
   maxProjects: 1,
   maxUsers: 2,
   viewerHoursQuota: 100,
-  auditRetentionDays: 7,
+  auditRetentionDays: 0,
   features: {
+    hls: true,
     webrtc: false,
     embed: false,
     api_access: false,
+    stream_profiles: false,
+    custom_profiles: false,
     csv_import: false,
     webhooks: false,
     recording: false,
+    audit_log: false,
+    map_public: false,
     sso: false,
+    multi_engine: false,
   },
 };
 
@@ -60,7 +68,7 @@ export async function getPlanLimits(tenantId: string): Promise<PlanLimits> {
     const licenseLimits = getEffectiveLimits();
     const features = getEffectiveFeatures();
     const featureMap: Record<string, boolean> = {};
-    for (const f of ["webrtc", "embed", "api_access", "csv_import", "webhooks", "recording", "sso", "forwarding", "ai", "multi_engine", "map_public", "audit_log", "stream_profiles", "custom_profiles"]) {
+    for (const f of ["hls", "webrtc", "embed", "api_access", "csv_import", "webhooks", "recording", "sso", "multi_engine", "map_public", "audit_log", "stream_profiles", "custom_profiles"]) {
       featureMap[f] = features.includes("*") || features.includes(f);
     }
     return {
@@ -197,18 +205,16 @@ export async function checkFeatureFlag(
 
 /**
  * Check viewer hours quota. Returns allowed=true if usage is within quota.
- * NOTE: Viewer hours tracking is not yet implemented — this always returns allowed=true.
- * TODO: Integrate with usage tracking service when available.
+ * Reads actual usage from Redis via the quota service.
  */
 export async function checkViewerHoursQuota(
   tenantId: string,
 ): Promise<{ allowed: boolean; currentHours: number; quotaHours: number }> {
   const limits = await getPlanLimits(tenantId);
-  // TODO: Query actual viewer hours from usage tracking
-  const currentHours = 0;
+  const usage = await getViewerHoursUsage(tenantId);
   return {
-    allowed: currentHours < limits.viewerHoursQuota,
-    currentHours,
+    allowed: usage.used_hours < limits.viewerHoursQuota,
+    currentHours: usage.used_hours,
     quotaHours: limits.viewerHoursQuota,
   };
 }
@@ -234,19 +240,30 @@ export async function getUsageSummary(
     .where(eq(users.tenantId, tenantId));
 
   // Get plan name
-  const tenant = await db.query.tenants.findFirst({
-    where: eq(tenants.id, tenantId),
-  });
-
   let planName = "free";
   let planDisplayName = "Free";
-  if (tenant?.subscriptionPlanId) {
-    const plan = await db.query.subscriptionPlans.findFirst({
-      where: eq(subscriptionPlans.id, tenant.subscriptionPlanId),
+
+  if (isOnPremDeployment()) {
+    // On-prem: read plan from license
+    const { getCachedLicenseStatus } = await import("./license");
+    const licenseStatus = getCachedLicenseStatus();
+    if (licenseStatus?.plan) {
+      planName = licenseStatus.plan;
+      planDisplayName = licenseStatus.plan.charAt(0).toUpperCase() + licenseStatus.plan.slice(1);
+    }
+  } else {
+    // Cloud: read from subscription_plans table
+    const tenant = await db.query.tenants.findFirst({
+      where: eq(tenants.id, tenantId),
     });
-    if (plan) {
-      planName = plan.name;
-      planDisplayName = plan.displayName;
+    if (tenant?.subscriptionPlanId) {
+      const plan = await db.query.subscriptionPlans.findFirst({
+        where: eq(subscriptionPlans.id, tenant.subscriptionPlanId),
+      });
+      if (plan) {
+        planName = plan.name;
+        planDisplayName = plan.displayName;
+      }
     }
   }
 
@@ -258,6 +275,7 @@ export async function getUsageSummary(
     },
     users: { current: userCount?.value ?? 0, limit: limits.maxUsers },
     viewerHoursQuota: limits.viewerHoursQuota,
+    features: limits.features,
     planName,
     planDisplayName,
   };

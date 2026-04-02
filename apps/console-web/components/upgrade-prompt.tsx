@@ -15,6 +15,7 @@ interface UpgradePromptProps {
   current: number
   limit: number
   planName: string
+  isOnPrem?: boolean
 }
 
 const upgradeMessages: Record<string, { nextPlan: string; nextLimit: number }> = {
@@ -30,8 +31,6 @@ const FEATURE_DESCRIPTIONS: Record<string, string> = {
   api_access: "Access cameras and streams via REST API with API keys.",
   webhooks: "Send real-time events to external services when camera status changes.",
   csv_import: "Bulk import cameras from CSV files.",
-  forwarding: "Forward RTSP streams to external services.",
-  ai: "Connect AI/analytics services to process camera feeds.",
   sso: "Single sign-on with SAML or OIDC identity providers.",
   custom_profiles: "Create custom stream profiles with advanced settings.",
   map_public: "Display cameras on a public-facing map view.",
@@ -73,6 +72,7 @@ export function UpgradePrompt({
   current,
   limit,
   planName,
+  isOnPrem,
 }: UpgradePromptProps) {
   const upgrade = upgradeMessages[planName.toLowerCase()] ?? {
     nextPlan: "a higher plan",
@@ -98,9 +98,15 @@ export function UpgradePrompt({
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <Button asChild variant="default" size="sm">
-          <a href="/billing">Upgrade Plan</a>
-        </Button>
+        {isOnPrem ? (
+          <p className="text-sm text-muted-foreground">
+            Contact your vendor to upgrade your license.
+          </p>
+        ) : (
+          <Button asChild variant="default" size="sm">
+            <a href="/profile?tab=billing">Upgrade Plan</a>
+          </Button>
+        )}
       </CardContent>
     </Card>
   )
