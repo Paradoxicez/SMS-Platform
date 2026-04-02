@@ -86,6 +86,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         pathname.startsWith("/login") ||
         pathname.startsWith("/verify") ||
         pathname.startsWith("/api/auth") ||
+        pathname.startsWith("/api/v1") ||
         pathname.startsWith("/play") ||
         pathname.startsWith("/embed/") ||
         pathname.startsWith("/map/") ||

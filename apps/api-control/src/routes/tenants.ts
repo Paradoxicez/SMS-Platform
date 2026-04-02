@@ -55,6 +55,57 @@ tenantsRouter.post("/", async (c) => {
   );
 });
 
+// GET /me — get current tenant
+tenantsRouter.get("/me", async (c) => {
+  const tenantId = c.get("tenantId") as string;
+
+  const tenant = await db.query.tenants.findFirst({
+    where: eq(tenants.id, tenantId),
+  });
+
+  if (!tenant) {
+    throw new AppError("NOT_FOUND", "Tenant not found", 404);
+  }
+
+  return c.json({
+    data: tenant,
+    meta: {
+      request_id: crypto.randomUUID(),
+      timestamp: new Date().toISOString(),
+    },
+  });
+});
+
+// PATCH /me — update current tenant
+tenantsRouter.patch("/me", async (c) => {
+  const tenantId = c.get("tenantId") as string;
+  const body = await c.req.json();
+  const data = updateTenantSchema.parse(body);
+
+  const updateData: Record<string, unknown> = {};
+  if (data.name !== undefined) updateData.name = data.name;
+  if (data.billing_email !== undefined) updateData.billingEmail = data.billing_email;
+  updateData.updatedAt = new Date();
+
+  const [tenant] = await db
+    .update(tenants)
+    .set(updateData)
+    .where(eq(tenants.id, tenantId))
+    .returning();
+
+  if (!tenant) {
+    throw new AppError("NOT_FOUND", "Tenant not found", 404);
+  }
+
+  return c.json({
+    data: tenant,
+    meta: {
+      request_id: crypto.randomUUID(),
+      timestamp: new Date().toISOString(),
+    },
+  });
+});
+
 // GET /:id — get tenant by id
 tenantsRouter.get("/:id", async (c) => {
   const id = c.req.param("id");
