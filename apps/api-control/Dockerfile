@@ -37,4 +37,4 @@ EXPOSE 3001
 
 USER nodejs
 WORKDIR /app/apps/api-control
-CMD ["node", "dist/index.js"]
+CMD ["node", "dist/entrypoint.js"]

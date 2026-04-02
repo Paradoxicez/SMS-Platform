@@ -16,6 +16,9 @@ services:
       DEPLOYMENT_MODE: ${DEPLOYMENT_MODE:-onprem}
       LICENSE_PUBLIC_KEY: ${LICENSE_PUBLIC_KEY:-}
       RECORDING_STORAGE_PATH: /recordings
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      ADMIN_TENANT: ${ADMIN_TENANT:-Default}
     volumes:
       - ./recordings:/recordings
     ports:
