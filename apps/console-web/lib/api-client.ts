@@ -116,8 +116,13 @@ export class ApiClient {
   private baseUrl: string;
   private token: string | null = null;
 
-  constructor(baseUrl: string = "http://localhost:3001/api/v1") {
-    this.baseUrl = baseUrl;
+  constructor(baseUrl?: string) {
+    // In browser: use relative URL (proxied by Next.js rewrites)
+    // On server: use env var or default
+    this.baseUrl = baseUrl
+      ?? (typeof window !== "undefined"
+        ? "/api/v1"
+        : (process.env["NEXT_PUBLIC_API_URL"] ?? "http://localhost:3001/api/v1"));
   }
 
   setToken(token: string): void {

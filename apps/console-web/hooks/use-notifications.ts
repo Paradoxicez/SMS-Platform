@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { apiClient } from "../lib/api-client";
+import { getApiBaseUrl } from "@/lib/api-url";
 
 export interface Notification {
   id: string;
@@ -64,8 +65,7 @@ export function useNotifications() {
     fetchNotifications();
 
     try {
-      const baseUrl =
-        process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001/api/v1";
+      const baseUrl = getApiBaseUrl();
       const es = new EventSource(`${baseUrl}/notifications/stream`, {
         withCredentials: true,
       });

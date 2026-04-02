@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { getApiBaseUrl } from "@/lib/api-url"
 import {
   Dialog,
   DialogContent,
@@ -41,7 +42,7 @@ export function OnboardingWizard({ open, onComplete, onSkip }: WizardProps) {
   const [siteId, setSiteId] = useState("")
   const [cameraOnline, setCameraOnline] = useState<boolean | null>(null)
 
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001"
+  const apiBase = getApiBaseUrl()
 
   async function apiCall(path: string, body: Record<string, unknown>) {
     // We need to use the api-client pattern with session token
@@ -54,7 +55,7 @@ export function OnboardingWizard({ open, onComplete, onSkip }: WizardProps) {
 
     // Fallback: call apiClient directly
     if (!resp || !resp.ok) {
-      const directRes = await fetch(`${apiUrl}/api/v1${path}`, {
+      const directRes = await fetch(`${apiBase}${path}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -143,7 +144,7 @@ export function OnboardingWizard({ open, onComplete, onSkip }: WizardProps) {
           // Verify Stream — check camera health
           setCameraOnline(null)
           try {
-            const res = await fetch(`${apiUrl}/api/v1/cameras`, {
+            const res = await fetch(`${apiBase}/cameras`, {
               credentials: "include",
             })
             if (res.ok) {
@@ -162,7 +163,7 @@ export function OnboardingWizard({ open, onComplete, onSkip }: WizardProps) {
         case 5: {
           // Done — mark onboarding complete
           try {
-            await fetch(`${apiUrl}/api/v1/onboarding/complete`, {
+            await fetch(`${apiBase}/onboarding/complete`, {
               method: "POST",
               credentials: "include",
             })
@@ -192,8 +193,7 @@ export function OnboardingWizard({ open, onComplete, onSkip }: WizardProps) {
 
   async function handleSkip() {
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001"
-      await fetch(`${apiUrl}/api/v1/onboarding/skip`, {
+      await fetch(`${getApiBaseUrl()}/onboarding/skip`, {
         method: "POST",
         credentials: "include",
       })

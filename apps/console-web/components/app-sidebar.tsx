@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { usePathname } from "next/navigation"
 import { useSession, signOut } from "next-auth/react"
+import { getApiBaseUrl } from "@/lib/api-url"
 import {
   Sidebar,
   SidebarContent,
@@ -98,7 +99,7 @@ export function AppSidebar() {
     async function checkDeployment() {
       try {
         const res = await fetch(
-          `${process.env["NEXT_PUBLIC_API_URL"] ?? "http://localhost:3001/api/v1"}/license/status`,
+          `${getApiBaseUrl()}/license/status`,
         )
         if (res.ok) {
           const data = await res.json()

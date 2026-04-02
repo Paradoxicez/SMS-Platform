@@ -4,11 +4,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid } from "recharts";
+import { getApiOrigin } from "@/lib/api-url";
 
 interface MetricPoint { t: string; bwIn: number; bwOut: number }
 
 const MAX_POINTS = 60;
-const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001/api/v1").replace(/\/api\/v1$/, "");
+const API_BASE = getApiOrigin();
 
 const chartConfig = {
   bwIn: { label: "Inbound", color: "#3b82f6" },

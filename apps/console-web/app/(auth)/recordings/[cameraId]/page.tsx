@@ -31,6 +31,7 @@ import { RecordingTimeline } from "@/components/recordings/recording-timeline";
 import { RecordingPlayer } from "@/components/recordings/recording-player";
 import { formatTime } from "@/lib/format-date";
 import { apiClient } from "@/lib/api-client";
+import { getApiBaseUrl } from "@/lib/api-url";
 import { useUserRole } from "@/lib/use-user-role";
 
 // ---------- Types ----------
@@ -214,7 +215,7 @@ function RecordingDetailContent() {
       } catch { /* continue without token */ }
 
       const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001/api/v1"}/recordings/${recordingId}/stream`,
+        `${getApiBaseUrl()}/recordings/${recordingId}/stream`,
         { headers },
       );
       if (!res.ok) throw new Error(`${res.status}`);
@@ -291,7 +292,7 @@ function RecordingDetailContent() {
       try {
         const headers: Record<string, string> = {};
         try { const s = await (await fetch("/api/auth/session")).json(); if (s?.accessToken) headers["Authorization"] = `Bearer ${s.accessToken}`; } catch {}
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001/api/v1"}/recordings/${id}/stream`, { headers });
+        const res = await fetch(`${getApiBaseUrl()}/recordings/${id}/stream`, { headers });
         if (!res.ok) continue;
         const blob = await res.blob();
         const url = URL.createObjectURL(blob);

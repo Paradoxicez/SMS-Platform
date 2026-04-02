@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { getApiBaseUrl } from "@/lib/api-url";
 import { useCameraStatusStream } from "@/hooks/use-camera-status-stream";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -74,8 +75,7 @@ export default function DashboardPage() {
     // Onboarding check
     async function fetchOnboardingStatus() {
       try {
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
-        const res = await fetch(`${apiUrl}/api/v1/onboarding/status`, {
+        const res = await fetch(`${getApiBaseUrl()}/onboarding/status`, {
           credentials: "include",
         });
         if (res.ok) {

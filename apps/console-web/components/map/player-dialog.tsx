@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { getApiOrigin } from "@/lib/api-url";
 import type { MapCamera } from "../../app/(public)/map/[projectKey]/page";
 
 /**
@@ -13,7 +14,7 @@ import type { MapCamera } from "../../app/(public)/map/[projectKey]/page";
  * Closing the dialog revokes the session.
  */
 
-const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001/api/v1").replace(/\/api\/v1$/, "");
+const API_BASE_URL = getApiOrigin();
 
 interface PlayerDialogProps {
   camera: MapCamera;

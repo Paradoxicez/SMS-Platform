@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef, Suspense } from "react";
 import { useParams, useSearchParams } from "next/navigation";
+import { getApiBaseUrl } from "@/lib/api-url";
 import { HlsPlayer } from "@/components/player/hls-player";
 import { WebRTCPlayer } from "@/components/player/webrtc-player";
 import {
@@ -62,8 +63,7 @@ function EmbedPlayerContent() {
     }
 
     try {
-      const baseUrl =
-        process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001/api/v1";
+      const baseUrl = getApiBaseUrl();
       const res = await fetch(`${baseUrl}/playback/sessions`, {
         method: "POST",
         headers: {

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Cpu, MemoryStick, HardDrive, Database } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
+import { getApiOrigin } from "@/lib/api-url";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -236,7 +237,7 @@ function RecordingStorageCard() {
 // ─── Main Component with SSE ───────────────────────────────────────────────────
 
 // Strip /api/v1 suffix if present — SSE URL is built with full path
-const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001/api/v1").replace(/\/api\/v1$/, "");
+const API_BASE = getApiOrigin();
 
 export function SystemResources() {
   const [current, setCurrent] = useState<MetricPoint | null>(null);

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import dynamic from "next/dynamic";
+import { getApiOrigin } from "@/lib/api-url";
 
 /**
  * T086: Public map page
@@ -38,7 +39,7 @@ function MapLoadingSkeleton() {
   );
 }
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+const API_BASE_URL = getApiOrigin();
 
 export default function PublicMapPage() {
   const params = useParams<{ projectKey: string }>();

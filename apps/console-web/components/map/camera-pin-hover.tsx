@@ -3,9 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { RecBadge } from "@/components/cameras/rec-badge";
+import { getApiOrigin } from "@/lib/api-url";
 import type { MapCamera } from "../../app/(public)/map/[projectKey]/page";
 
-const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001/api/v1").replace(/\/api\/v1$/, "");
+const API_BASE_URL = getApiOrigin();
 
 // Cache: don't re-request playback for cameras that already failed
 const failedCameraIds = new Set<string>();

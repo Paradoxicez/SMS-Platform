@@ -8,6 +8,7 @@ import { Play, Download, X } from "lucide-react"
 import { RecBadge } from "@/components/cameras/rec-badge"
 import { toast } from "sonner"
 import { formatDateTime } from "@/lib/format-date"
+import { getApiBaseUrl } from "@/lib/api-url"
 import type { Recording } from "./types"
 
 interface RecordingCardProps {
@@ -37,7 +38,7 @@ function formatBytes(bytes: number): string {
   return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i] ?? "B"}`
 }
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001/api/v1"
+const API_BASE = getApiBaseUrl()
 
 export function RecordingCard({ recording, selected, onSelectChange }: RecordingCardProps) {
   const router = useRouter()
