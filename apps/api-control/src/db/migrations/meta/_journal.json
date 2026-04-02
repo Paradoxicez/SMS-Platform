@@ -15,6 +15,55 @@
       "when": 1774956000000,
       "tag": "0001_recording_and_license",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1774956100000,
+      "tag": "0002_drop_ai_integrations",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1774956200000,
+      "tag": "0003_add_user_timezone",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1774956300000,
+      "tag": "0004_add_sites_default_policy_id",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1774956400000,
+      "tag": "0005_add_camera_source_info",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1774956500000,
+      "tag": "0006_add_builtin_auth",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1774956600000,
+      "tag": "0007_seed_dev_users",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1774956700000,
+      "tag": "0008_add_user_date_prefs",
+      "breakpoints": true
     }
   ]
 }
