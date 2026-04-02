@@ -64,6 +64,13 @@
       "when": 1774956700000,
       "tag": "0008_add_user_date_prefs",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1774956800000,
+      "tag": "0009_add_stream_profiles_keyframe_interval",
+      "breakpoints": true
     }
   ]
 }
