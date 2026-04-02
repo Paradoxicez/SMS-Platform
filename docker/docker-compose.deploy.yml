@@ -1,6 +1,6 @@
 services:
   api-control:
-    image: sms-app/api-control:latest
+    image: ghcr.io/paradoxicez/sms-platform/api-control:latest
     container_name: sms-api-control
     restart: unless-stopped
     environment:
@@ -29,7 +29,7 @@ services:
       - docker_default
 
   console-web:
-    image: sms-app/console-web:latest
+    image: ghcr.io/paradoxicez/sms-platform/console-web:latest
     container_name: sms-console-web
     restart: unless-stopped
     environment:
@@ -53,7 +53,7 @@ services:
       - docker_default
 
   data-plane-worker:
-    image: sms-app/data-plane-worker:latest
+    image: ghcr.io/paradoxicez/sms-platform/data-plane-worker:latest
     container_name: sms-data-plane-worker
     restart: unless-stopped
     environment:
