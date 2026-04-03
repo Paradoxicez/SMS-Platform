@@ -261,6 +261,7 @@ export async function issueSession(
   const secConfig = await getStreamSecurityConfig(tenantId);
 
   let playbackUrl: string;
+  let streamPath: string | undefined;
   if (secConfig.streamSecurityEnabled) {
     const tokenExpiry = Math.floor(Date.now() / 1000) + secConfig.streamTokenExpiry;
     const streamToken = signStreamToken(jti, cameraId, tokenExpiry);
@@ -272,11 +273,13 @@ export async function issueSession(
   } else {
     const externalPath = resolveExternalPath(cameraId, profileSettings, camera.sourceCodec);
     playbackUrl = `${ORIGIN_BASE_URL}/${externalPath}/index.m3u8`;
+    streamPath = `${externalPath}/index.m3u8`;
   }
 
   return {
     session_id: jti,
     playback_url: playbackUrl,
+    stream_path: streamPath,
     protocol: "hls",
     codec: profileSettings.outputCodec,
     expires_at: expiresAtIso,
