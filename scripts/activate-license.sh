@@ -1,11 +1,11 @@
 #!/bin/bash
-# Activate Pro license on a running SMS Platform instance
+# Activate Enterprise license on a running SMS Platform instance
 # Usage: bash activate-license.sh
 
-API="http://localhost:3001/api/v1"
+API="${API_URL:-http://localhost:3001/api/v1}"
 EMAIL="${ADMIN_EMAIL:-admin@root}"
 PASS="${ADMIN_PASSWORD:-p@ssw0rd2026}"
-KEY="eyJpZCI6IkxJQy0yMDI2LUM5NUU3MiIsInRlbmFudCI6Ik1hZ2ljSG91c2UiLCJwbGFuIjoicHJvIiwibGltaXRzIjp7ImNhbWVyYXMiOjEwMCwicHJvamVjdHMiOjEwLCJ1c2VycyI6MjAsInNpdGVzIjozMCwiYXBpX2tleXMiOjEwLCJ2aWV3ZXJfaG91cnMiOjEwMDAwLCJyZXRlbnRpb25fZGF5cyI6MzB9LCJhZGRvbnMiOlsicmVjb3JkaW5nIiwid2VicnRjIiwiZW1iZWQiLCJhcGlfYWNjZXNzIiwid2ViaG9va3MiLCJhdWRpdF9sb2ciLCJtYXBfcHVibGljIiwiY3VzdG9tX3Byb2ZpbGVzIiwiY3N2X2ltcG9ydCJdLCJpc3N1ZWRBdCI6IjIwMjYtMDQtMDIiLCJleHBpcmVzQXQiOiIyMDI3LTA0LTAzIn0.zvQOeTNgcqfy-yvP4fU-yKQhP2VpxWQJ0fGbnGsgW2_8HdMIORhP3pK6WmtwkVPCxSBtx3BuRyEHaQyh9RzLCQ"
+KEY="eyJpZCI6IkxJQy0yMDI2LUVOVC0wMDEiLCJ0ZW5hbnQiOiJNYWdpY0hvdXNlIiwicGxhbiI6ImVudGVycHJpc2UiLCJsaW1pdHMiOnsiY2FtZXJhcyI6OTAwNzE5OTI1NDc0MDk5MSwicHJvamVjdHMiOjkwMDcxOTkyNTQ3NDA5OTEsInVzZXJzIjo5MDA3MTk5MjU0NzQwOTkxLCJzaXRlcyI6OTAwNzE5OTI1NDc0MDk5MSwiYXBpX2tleXMiOjkwMDcxOTkyNTQ3NDA5OTEsInZpZXdlcl9ob3VycyI6OTAwNzE5OTI1NDc0MDk5MSwicmV0ZW50aW9uX2RheXMiOjM2NX0sImFkZG9ucyI6WyJobHMiLCJ3ZWJydGMiLCJlbWJlZCIsImFwaV9hY2Nlc3MiLCJzdHJlYW1fcHJvZmlsZXMiLCJjdXN0b21fcHJvZmlsZXMiLCJjc3ZfaW1wb3J0Iiwid2ViaG9va3MiLCJyZWNvcmRpbmciLCJhdWRpdF9sb2ciLCJtYXBfcHVibGljIiwic3NvIiwibXVsdGlfZW5naW5lIl0sImlzc3VlZEF0IjoiMjAyNi0wNC0wMyIsImV4cGlyZXNBdCI6IjIwMzAtMDQtMDMifQ.BtOSupwPyI34_cPPHz42gMklWMot6x13hnCC3ULjOkDqjTFR4Ka-8137m6VnJT_yftSsFpTGlO9jAHl8PDD3CA"
 
 echo "Logging in as $EMAIL..."
 TOKEN=$(curl -s -X POST "$API/auth/login" -H "Content-Type: application/json" -d "{\"email\":\"$EMAIL\",\"password\":\"$PASS\"}" | grep -o '"access_token":"[^"]*"' | cut -d'"' -f4)
