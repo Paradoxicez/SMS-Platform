@@ -2,7 +2,7 @@ services:
   # ─── Infrastructure ─────────────────────────────────────────────────────────
 
   postgres:
-    image: postgres:17-alpine
+    image: postgres:16-alpine
     container_name: sms-postgres
     restart: unless-stopped
     ports:
