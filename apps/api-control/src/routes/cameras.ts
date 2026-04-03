@@ -343,6 +343,10 @@ camerasRouter.post(
       }),
     );
 
+    // Reset reconnect cooldown on manual start
+    const { resetRecoveryAttempts } = await import("../services/stream-sync");
+    resetRecoveryAttempts(id);
+
     // Setup pipeline using Stream Profile settings
     const { setupCameraPipeline } = await import("../services/stream-pipeline");
     setupCameraPipeline(id, tenantId, camera.rtspUrl).then(async (result) => {

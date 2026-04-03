@@ -90,10 +90,19 @@ function filterByRole(items: NavItem[], role: Role, isOnPrem: boolean): NavItem[
 
 export function AppSidebar() {
   const pathname = usePathname()
-  const { data: session } = useSession()
+  const { data: session, status } = useSession()
   const [isOnPrem, setIsOnPrem] = useState(false)
+  const [confirmedRole, setConfirmedRole] = useState<Role | null>(null)
 
-  const userRole = ((session as any)?.role as Role) ?? "viewer"
+  // Only update role when session is fully loaded — prevents flashing to "viewer"
+  useEffect(() => {
+    if (status === "authenticated" && session) {
+      const role = ((session as any)?.role as Role) || "viewer"
+      setConfirmedRole(role)
+    }
+  }, [status, session])
+
+  const userRole = confirmedRole ?? ((session as any)?.role as Role) ?? "viewer"
 
   useEffect(() => {
     async function checkDeployment() {

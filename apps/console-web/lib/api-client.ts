@@ -137,15 +137,19 @@ export class ApiClient {
     // Try to get token from next-auth session if not manually set
     let authToken = this.token;
     if (!authToken && typeof window !== "undefined") {
-      try {
-        const res = await fetch("/api/auth/session");
-        if (res.ok) {
-          const session = await res.json();
-          authToken = session?.accessToken ?? null;
-          if (authToken) this.token = authToken;
+      // Retry up to 3 times with delay — session may not be ready on initial page load
+      for (let attempt = 0; attempt < 3 && !authToken; attempt++) {
+        try {
+          if (attempt > 0) await new Promise((r) => setTimeout(r, 500 * attempt));
+          const res = await fetch("/api/auth/session");
+          if (res.ok) {
+            const session = await res.json();
+            authToken = session?.accessToken ?? null;
+            if (authToken) this.token = authToken;
+          }
+        } catch {
+          // Session fetch failed — retry
         }
-      } catch {
-        // Session fetch failed — continue without auth
       }
     }
 

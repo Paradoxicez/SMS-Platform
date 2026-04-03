@@ -13,8 +13,14 @@ import { redis } from "../lib/redis";
 import { setupCameraPipeline } from "./stream-pipeline";
 
 const SYNC_INTERVAL = 30_000; // 30 seconds
+const RECOVERY_COOLDOWN = 120_000; // 2 minutes cooldown before re-adding a failed path
+const MAX_RECOVERY_ATTEMPTS = 5; // Max recovery attempts before giving up
+
 let syncTimer: ReturnType<typeof setInterval> | null = null;
 let syncing = false;
+
+// Track recovery attempts per camera to prevent reconnect loops
+const recoveryAttempts = new Map<string, { count: number; lastAttempt: number }>();
 
 interface MediaMTXPath {
   name: string;
@@ -50,6 +56,11 @@ export function stopStreamSync() {
     clearInterval(syncTimer);
     syncTimer = null;
   }
+}
+
+/** Reset recovery counter for a camera (e.g. after manual start) */
+export function resetRecoveryAttempts(cameraId: string) {
+  recoveryAttempts.delete(cameraId);
 }
 
 async function syncStreams() {
@@ -105,11 +116,54 @@ async function syncStreams() {
 
       // 3. Check if camera path exists in MediaMTX
       if (!pathNames.has(pathName)) {
-        // Path missing — re-add it
+        // Path missing — check cooldown before re-adding
+        const recovery = recoveryAttempts.get(camera.id);
+        const now = Date.now();
+
+        if (recovery) {
+          // Skip if within cooldown period
+          if (now - recovery.lastAttempt < RECOVERY_COOLDOWN) {
+            continue;
+          }
+          // Skip if max attempts exceeded — mark as offline
+          if (recovery.count >= MAX_RECOVERY_ATTEMPTS) {
+            if (camera.healthStatus !== "offline") {
+              console.warn(JSON.stringify({
+                level: "warn",
+                service: "stream-sync",
+                message: `Max recovery attempts (${MAX_RECOVERY_ATTEMPTS}) reached, marking offline`,
+                cameraId: camera.id,
+              }));
+              await db
+                .update(cameras)
+                .set({ healthStatus: "offline", updatedAt: new Date() })
+                .where(eq(cameras.id, camera.id));
+              await redis.publish(
+                "camera:health:state_change",
+                JSON.stringify({
+                  camera_id: camera.id,
+                  tenant_id: camera.tenantId,
+                  previous_state: camera.healthStatus,
+                  new_state: "offline",
+                  event: "camera.offline",
+                  timestamp: new Date().toISOString(),
+                }),
+              );
+            }
+            continue;
+          }
+        }
+
+        // Track this recovery attempt
+        recoveryAttempts.set(camera.id, {
+          count: (recovery?.count ?? 0) + 1,
+          lastAttempt: now,
+        });
+
         console.log(JSON.stringify({
           level: "info",
           service: "stream-sync",
-          message: `Re-adding missing path: ${pathName} (using Stream Profile)`,
+          message: `Re-adding missing path: ${pathName} (attempt ${(recovery?.count ?? 0) + 1}/${MAX_RECOVERY_ATTEMPTS})`,
           cameraId: camera.id,
         }));
 
@@ -145,6 +199,9 @@ async function syncStreams() {
         }
       } else if (readyPaths.has(pathName)) {
         // 4. Path exists and ready — ensure DB says "online"
+        // Reset recovery counter on successful stream
+        recoveryAttempts.delete(camera.id);
+
         if (camera.healthStatus !== "online") {
           await db
             .update(cameras)

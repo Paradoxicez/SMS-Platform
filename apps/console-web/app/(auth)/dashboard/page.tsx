@@ -91,11 +91,18 @@ export default function DashboardPage() {
     }
     fetchOnboardingStatus();
 
-    // Dashboard stats
+    // Dashboard stats — retry once if first attempt fails (token may not be ready)
     apiClient.getDashboardStats()
-      .then((res) => setStats(res.data))
-      .catch(() => {})
-      .finally(() => setLoading(false));
+      .then((res) => { setStats(res.data); setLoading(false); })
+      .catch(() => {
+        // Retry after 1.5s — session token likely wasn't ready on first attempt
+        setTimeout(() => {
+          apiClient.getDashboardStats()
+            .then((res) => setStats(res.data))
+            .catch(() => {})
+            .finally(() => setLoading(false));
+        }, 1500);
+      });
 
     // Problem cameras (offline + degraded)
     Promise.all([

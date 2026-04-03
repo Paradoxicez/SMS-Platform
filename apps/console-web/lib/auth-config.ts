@@ -74,7 +74,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       return {
         ...session,
         accessToken: token.accessToken as string | undefined,
-        role: (token.role as string) ?? "viewer",
+        // Only include role if it was set during login — never silently fallback to "viewer"
+        // which would hide admin menu items and confuse users
+        role: token.role as string | undefined,
         tenantId: token.tenantId as string | undefined,
       }
     },
