@@ -1,0 +1,148 @@
+services:
+  # ─── Infrastructure ─────────────────────────────────────────────────────────
+
+  postgres:
+    image: postgres:17-alpine
+    container_name: sms-postgres
+    restart: unless-stopped
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-sms_app}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: sms-redis
+    restart: unless-stopped
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  mediamtx:
+    image: bluenviron/mediamtx:latest-ffmpeg
+    container_name: sms-mediamtx
+    restart: unless-stopped
+    ports:
+      - "8554:8554"   # RTSP
+      - "8888:8888"   # HLS
+      - "8889:8889"   # WebRTC
+      - "8189:8189/udp"
+      - "9996:9996"   # Playback
+      - "9997:9997"   # API
+      - "9998:9998"   # Metrics
+    volumes:
+      - ./mediamtx/mediamtx.yml:/mediamtx.yml
+      - ./mediamtx/on-record-segment.sh:/on-record-segment.sh
+      - thumbnails_data:/thumbnails
+      - ./recordings:/recordings
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://admin:admin@localhost:9997/v3/paths/list || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  # ─── Application ────────────────────────────────────────────────────────────
+
+  api-control:
+    image: ghcr.io/paradoxicez/sms-platform/api-control:latest
+    container_name: sms-api-control
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-sms_app}
+      REDIS_URL: redis://redis:6379
+      AUTH_SECRET: ${AUTH_SECRET:?AUTH_SECRET is required}
+      SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET is required}
+      INTERNAL_SECRET: ${INTERNAL_SECRET:?INTERNAL_SECRET is required}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
+      ORIGIN_BASE_URL: http://mediamtx:8888
+      MEDIAMTX_API_URL: http://mediamtx:9997
+      MEDIAMTX_API_USER: admin
+      MEDIAMTX_API_PASS: admin
+      DEPLOYMENT_MODE: ${DEPLOYMENT_MODE:-onprem}
+      LICENSE_PUBLIC_KEY: ${LICENSE_PUBLIC_KEY:-}
+      RECORDING_STORAGE_PATH: /recordings
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      ADMIN_TENANT: ${ADMIN_TENANT:-Default}
+    volumes:
+      - ./recordings:/recordings
+    ports:
+      - "3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:3001/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  console-web:
+    image: ghcr.io/paradoxicez/sms-platform/console-web:latest
+    container_name: sms-console-web
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      API_INTERNAL_URL: http://api-control:3001/api/v1
+      AUTH_SECRET: ${AUTH_SECRET:?AUTH_SECRET is required}
+      AUTH_TRUST_HOST: "true"
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
+    ports:
+      - "3000:3000"
+    depends_on:
+      api-control:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:3000/ || exit 0"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  data-plane-worker:
+    image: ghcr.io/paradoxicez/sms-platform/data-plane-worker:latest
+    container_name: sms-data-plane-worker
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3002
+      REDIS_URL: redis://redis:6379
+      MEDIAMTX_API_URL: http://mediamtx:9997
+      SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET is required}
+      INTERNAL_SECRET: ${INTERNAL_SECRET:?INTERNAL_SECRET is required}
+    ports:
+      - "3002:3002"
+    depends_on:
+      redis:
+        condition: service_healthy
+      mediamtx:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:3002/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+  redis_data:
+  thumbnails_data:
