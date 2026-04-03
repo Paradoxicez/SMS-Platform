@@ -16,7 +16,11 @@ interface CameraCardProps {
   onRefresh?: () => void
 }
 
-const HLS_BASE = process.env.NEXT_PUBLIC_MEDIAMTX_HLS_URL ?? "http://localhost:8888"
+function getHlsBase() {
+  if (process.env.NEXT_PUBLIC_MEDIAMTX_HLS_URL) return process.env.NEXT_PUBLIC_MEDIAMTX_HLS_URL
+  if (typeof window !== "undefined") return `${window.location.protocol}//${window.location.hostname}:8888`
+  return "http://localhost:8888"
+}
 
 function StatusDot({ status }: { status: string }) {
   const color =
@@ -62,13 +66,20 @@ export function CameraCard({ camera, siteName, viewerCount, onClick, onRefresh }
     if (!isOnline) { setPlaybackUrl(null); return }
 
     apiClient
-      .post<{ data: { playback_url: string } }>("/playback/internal/sessions", {
+      .post<{ data: { playback_url: string; stream_path?: string } }>("/playback/internal/sessions", {
         camera_id: camera.id,
       })
-      .then((res) => setPlaybackUrl(res.data.playback_url))
+      .then((res) => {
+        // Prefer stream_path with dynamic base (works across networks)
+        if (res.data.stream_path) {
+          setPlaybackUrl(`${getHlsBase()}/${res.data.stream_path}`)
+        } else {
+          setPlaybackUrl(res.data.playback_url)
+        }
+      })
       .catch(() => {
         // Fallback: original stream path
-        setPlaybackUrl(`${HLS_BASE}/cam-${camera.id}/index.m3u8`)
+        setPlaybackUrl(`${getHlsBase()}/cam-${camera.id}/index.m3u8`)
       })
   }, [camera.id, isOnline])
 

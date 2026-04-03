@@ -373,6 +373,7 @@ export async function issueInternalSession(
   return {
     session_id: jti,
     playback_url: playbackUrl,
+    stream_path: `${previewPath}/index.m3u8`,
     protocol: "hls",
     codec: camera.sourceCodec === "H265" ? "h264" : "passthrough",
     expires_at: expiresAtIso,

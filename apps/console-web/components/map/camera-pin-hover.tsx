@@ -62,8 +62,14 @@ function LivePreview({ cameraId }: { cameraId: string }) {
         });
         if (res.ok) {
           const data = await res.json();
-          urlCache.set(cameraId, data.data.playback_url);
-          setHlsUrl(data.data.playback_url);
+          let url = data.data.playback_url;
+          if (data.data.stream_path) {
+            const base = process.env.NEXT_PUBLIC_MEDIAMTX_HLS_URL
+              ?? `${window.location.protocol}//${window.location.hostname}:8888`;
+            url = `${base}/${data.data.stream_path}`;
+          }
+          urlCache.set(cameraId, url);
+          setHlsUrl(url);
           return;
         }
         failedCameraIds.add(cameraId);

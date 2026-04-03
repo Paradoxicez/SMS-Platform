@@ -26,8 +26,18 @@ interface PlayerDialogProps {
 interface PlaybackSession {
   session_id: string;
   playback_url: string;
+  stream_path?: string;
   expires_at: string;
   ttl: number;
+}
+
+function resolvePlaybackUrl(session: PlaybackSession): string {
+  if (session.stream_path && typeof window !== "undefined") {
+    const base = process.env.NEXT_PUBLIC_MEDIAMTX_HLS_URL
+      ?? `${window.location.protocol}//${window.location.hostname}:8888`;
+    return `${base}/${session.stream_path}`;
+  }
+  return session.playback_url;
 }
 
 export function PlayerDialog({
@@ -165,7 +175,7 @@ export function PlayerDialog({
         if (!Hls.isSupported() || !videoRef.current) {
           // Fallback: try native HLS (Safari)
           if (videoRef.current) {
-            videoRef.current.src = session!.playback_url;
+            videoRef.current.src = resolvePlaybackUrl(session!);
             videoRef.current.play().catch(() => {});
           }
           return;
@@ -176,7 +186,7 @@ export function PlayerDialog({
           lowLatencyMode: true,
         });
 
-        hlsInstance.loadSource(session!.playback_url);
+        hlsInstance.loadSource(resolvePlaybackUrl(session!));
         hlsInstance.attachMedia(videoRef.current!);
 
         (hlsInstance as unknown as { on: (event: string, cb: () => void) => void }).on(

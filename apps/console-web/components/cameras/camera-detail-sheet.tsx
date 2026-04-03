@@ -171,13 +171,21 @@ export function CameraDetailSheet({
       setPlaybackUrl(null);
       if (isOnline) {
         apiClient
-          .post<{ data: { playback_url: string } }>("/playback/internal/sessions", {
+          .post<{ data: { playback_url: string; stream_path?: string } }>("/playback/internal/sessions", {
             camera_id: camera.id,
           })
-          .then((res) => setPlaybackUrl(res.data.playback_url))
+          .then((res) => {
+            const base = process.env.NEXT_PUBLIC_MEDIAMTX_HLS_URL
+              ?? (typeof window !== "undefined" ? `${window.location.protocol}//${window.location.hostname}:8888` : "http://localhost:8888");
+            if (res.data.stream_path) {
+              setPlaybackUrl(`${base}/${res.data.stream_path}`);
+            } else {
+              setPlaybackUrl(res.data.playback_url);
+            }
+          })
           .catch(() => {
-            // Fallback: use original stream path (always works)
-            const base = process.env.NEXT_PUBLIC_MEDIAMTX_HLS_URL ?? "http://localhost:8888";
+            const base = process.env.NEXT_PUBLIC_MEDIAMTX_HLS_URL
+              ?? (typeof window !== "undefined" ? `${window.location.protocol}//${window.location.hostname}:8888` : "http://localhost:8888");
             setPlaybackUrl(`${base}/cam-${camera.id}/index.m3u8`);
           });
       }
